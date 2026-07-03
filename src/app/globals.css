@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --background: #050505;
+  --foreground: #FFFFFF;
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'Inter', ui-monospace, monospace;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Premium Layout Paddings */
+.layout-padding {
+  padding-left: 32px;
+  padding-right: 32px;
+}
+@media (min-width: 768px) {
+  .layout-padding {
+    padding-left: 64px;
+    padding-right: 64px;
+  }
+}
+@media (min-width: 1024px) {
+  .layout-padding {
+    padding-left: 120px;
+    padding-right: 120px;
+  }
+}
+
+/* Standard Rounded Corners */
+.radius-card {
+  border-radius: 22px;
+}
+.radius-button {
+  border-radius: 16px;
+}
+.radius-layout {
+  border-radius: 18px;
+}
+
+/* Luxury Glassmorphism Styles */
+.glass-panel {
+  background: rgba(21, 21, 21, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+.glass-panel-light {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Luxury Glass Card */
+.glass-card {
+  background: #151515 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.glass-card:hover {
+  transform: translateY(-4px) !important;
+  border-color: #FFD400 !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 212, 0, 0.05) !important;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #080808;
+}
+::-webkit-scrollbar-thumb {
+  background: #151515;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FFD400;
+}
+
+html,
+body,
+#__next {
+  height: 100%;
+  width: 100%;
+}
+
+
