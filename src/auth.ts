@@ -1,6 +1,8 @@
 import NextAuth from "next-auth";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
 import clientPromise from "./lib/mongodb";
 import { connectToDatabase } from "./lib/db";
 import { User, Workshop } from "./models/Schemas";
@@ -21,6 +23,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
     }),
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+        await connectToDatabase();
+        const user = await User.findOne({ email: credentials.email });
+        if (!user || !user.password_hash) return null;
+        
+        const isMatch = bcrypt.compareSync(credentials.password as string, user.password_hash);
+        if (!isMatch) return null;
+
+        return {
+          id: user._id.toString(),
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          image: user.profile_image
+        };
+      }
+    })
   ],
   callbacks: {
     ...authConfig.callbacks,
@@ -39,10 +65,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           dbUser = await User.create({
             name: user.name || "Google Driver",
             email: user.email || "",
-            phone: "+1555555555",
+            phone: "+919876543210", // Standard fallback Indian format
             role: finalRole,
             profile_image: user.image || undefined,
-            created_at: new Date()
+            profileImage: user.image || undefined,
+            provider: "google",
+            phoneVerified: true,
+            emailVerified: true,
+            created_at: new Date(),
+            createdAt: new Date()
           });
 
           // Seed workshop document if registering workshop owner
@@ -51,13 +82,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               owner_id: dbUser._id,
               name: "NEON HYPERGARAGE BRANCH",
               address: "77 Cyberpunk Boulevard, sector 12",
-              phone: "+1444444444",
+              phone: "+919876543210",
               services: ["EV Diagnostic", "Performance Tuning"],
               capacity: 8,
               is_verified: false,
               rating: 5.0,
               review_count: 0
             });
+          }
+        } else {
+          // Keep existing user updated with provider settings if missing
+          let changed = false;
+          if (!dbUser.provider) {
+            dbUser.provider = "google";
+            changed = true;
+          }
+          if (dbUser.phoneVerified === undefined) {
+            dbUser.phoneVerified = true;
+            changed = true;
+          }
+          if (dbUser.emailVerified === undefined) {
+            dbUser.emailVerified = true;
+            changed = true;
+          }
+          if (changed) {
+            await dbUser.save();
           }
         }
         

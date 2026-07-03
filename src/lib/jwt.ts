@@ -18,3 +18,15 @@ export function verifyToken(req: Request): any {
     return null;
   }
 }
+
+export function signTokenWithExpiry(payload: object, expiresIn: any = "10m") {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+}
+
+export function verifyTokenString(token: string): any {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return null;
+  }
+}

@@ -9,6 +9,14 @@ export interface IUser {
   password_hash?: string;
   profile_image?: string;
   created_at?: Date;
+  
+  // New aligned fields
+  password?: string;
+  provider?: string;
+  profileImage?: string;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
+  createdAt?: Date;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -18,7 +26,15 @@ const UserSchema = new Schema<IUser>({
   role: { type: String, enum: ["admin", "owner", "workshop"], default: "owner" },
   password_hash: { type: String },
   profile_image: { type: String },
-  created_at: { type: Date, default: Date.now }
+  created_at: { type: Date, default: Date.now },
+  
+  // New aligned fields
+  password: { type: String },
+  provider: { type: String, default: "credentials" },
+  profileImage: { type: String },
+  phoneVerified: { type: Boolean, default: false },
+  emailVerified: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
 });
 
 export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
@@ -248,3 +264,24 @@ const InvoiceSchema = new Schema<IInvoice>({
 });
 
 export const Invoice: Model<IInvoice> = mongoose.models.Invoice || mongoose.model<IInvoice>("Invoice", InvoiceSchema);
+
+// --- TempOtp Schema ---
+export interface ITempOtp {
+  email: string;
+  hashedOtp: string;
+  attempts: number;
+  resends: number;
+  lastResendAt: Date;
+  createdAt: Date;
+}
+
+const TempOtpSchema = new Schema<ITempOtp>({
+  email: { type: String, required: true, unique: true, index: true },
+  hashedOtp: { type: String, required: true },
+  attempts: { type: Number, default: 0 },
+  resends: { type: Number, default: 0 },
+  lastResendAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now, expires: 300 }
+});
+
+export const TempOtp: Model<ITempOtp> = mongoose.models.TempOtp || mongoose.model<ITempOtp>("TempOtp", TempOtpSchema);

@@ -1,20 +1,41 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, ShieldAlert, ArrowRight } from "lucide-react";
 import api from "@/services/api";
+import { signIn } from "next-auth/react";
 
-export default function Login() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+
+  // Catch NextAuth OAuth error redirects and display custom friendly messages
+  useEffect(() => {
+    const errorParam = searchParams ? searchParams.get("error") : null;
+    if (errorParam) {
+      if (errorParam === "OAuthCallback" || errorParam === "OAuthSignin") {
+        setError("Google Login failed: Redirect URI mismatch or authentication was cancelled. Please check Google Cloud OAuth settings.");
+      } else if (errorParam === "OAuthCreateAccount") {
+        setError("Google Login failed: Could not create a FIXORA account for this profile.");
+      } else if (errorParam === "Callback") {
+        setError("Google Login failed: Callback error occurred. Please try again.");
+      } else if (errorParam === "AccessDenied") {
+        setError("Google Login failed: Access denied or authorization cancelled.");
+      } else {
+        setError(`Google Login failed: ${errorParam}`);
+      }
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +55,13 @@ export default function Login() {
       localStorage.setItem("fixora_refresh_token", refresh_token);
       localStorage.setItem("fixora_user", JSON.stringify(user));
 
+      // Trigger credentials signin in NextAuth to establish session cookie
+      await signIn("credentials", {
+        email,
+        password,
+        redirect: false
+      });
+
       // Redirect based on role
       if (user.role === "admin") {
         router.push("/admin/dashboard");
@@ -49,27 +77,16 @@ export default function Login() {
     }
   };
 
-  const handleOAuthLogin = (provider: "google") => {
-    // Simulate OAuth handshake
+  const handleOAuthLogin = async (provider: "google") => {
     setLoading(true);
-    setTimeout(() => {
-      // Mock OAuth login payload
-      const mockUser = {
-        _id: "oauth_mock_id",
-        name: "OAuth User (google)",
-        email: "oauth_google@fixora.com",
-        phone: "+1888888888",
-        role: "owner", // default mock role
-        profile_image: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=250",
-        created_at: new Date()
-      };
-      
-      localStorage.setItem("fixora_access_token", "mock_oauth_access_token");
-      localStorage.setItem("fixora_refresh_token", "mock_oauth_refresh_token");
-      localStorage.setItem("fixora_user", JSON.stringify(mockUser));
-      
-      router.push("/owner/dashboard");
-    }, 1000);
+    setError("");
+    try {
+      await signIn(provider, { callbackUrl: "/dashboard" });
+    } catch (e) {
+      console.error(e);
+      setError("Google Login failed. Check your network or credentials.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -90,7 +107,7 @@ export default function Login() {
             />
             <span className="font-bold text-2xl tracking-tight text-white font-sans mt-1">FIXORA</span>
           </Link>
-          <p className="text-[#9A9A9A] text-xs">Enter coordinates to access your control panel.</p>
+          <p className="text-[#9A9A9A] text-xs">Enter credentials to access your control panel.</p>
         </div>
 
         {error && (
@@ -175,7 +192,8 @@ export default function Login() {
         <div className="w-full">
           <button 
             onClick={() => handleOAuthLogin("google")}
-            className="w-full py-2.5 rounded-[16px] border border-[#FFD400] bg-transparent hover:bg-[#FFD400]/10 transition-all text-xs font-semibold flex items-center justify-center gap-2 text-white"
+            disabled={loading}
+            className="w-full py-2.5 rounded-[16px] border border-[#FFD400] bg-transparent hover:bg-[#FFD400]/10 transition-all text-xs font-semibold flex items-center justify-center gap-2 text-white disabled:opacity-50"
           >
             Google
           </button>
@@ -189,5 +207,17 @@ export default function Login() {
       </div>
 
     </div>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center text-white bg-black font-mono text-xs">
+        INITIALIZING COMPASS CORRIDOR...
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

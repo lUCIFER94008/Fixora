@@ -18,12 +18,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: "Incorrect email or password" }, { status: 400 });
     }
 
-    // If password_hash is not set (legacy or OAuth user), handle it
-    if (!user.password_hash) {
+    // If password hash is not set, handle it
+    const passwordHash = user.password_hash || user.password;
+    if (!passwordHash) {
       return NextResponse.json({ detail: "Auth method mismatch. Please use social sign-in." }, { status: 400 });
     }
 
-    const isMatch = bcrypt.compareSync(password, user.password_hash);
+    const isMatch = bcrypt.compareSync(password, passwordHash);
     if (!isMatch) {
       return NextResponse.json({ detail: "Incorrect email or password" }, { status: 400 });
     }
