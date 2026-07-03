@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { User } from "@/models/Schemas";
+import { User, OtpVerification } from "@/models/Schemas";
 
 export async function POST(req: Request) {
   try {
     await connectToDatabase();
-    const { email, phone } = await req.json();
+    
+    let email = "";
+    let phone = "";
+    
+    try {
+      const body = await req.json();
+      email = body?.email || "";
+      phone = body?.phone || "";
+    } catch (parseErr) {
+      // Gracefully handle empty or malformed body
+    }
 
     if (email) {
       const existingEmail = await User.findOne({ email });
@@ -21,9 +31,32 @@ export async function POST(req: Request) {
       }
     }
 
+    // Link email and phone together in the verification document
+    if (email && phone) {
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes session
+      
+      await OtpVerification.findOneAndUpdate(
+        { email },
+        {
+          $set: {
+            phone,
+            emailOTP: "pending_email",
+            smsOTP: "pending_sms",
+            expiresAt,
+            verifiedEmail: false,
+            verifiedPhone: false
+          }
+        },
+        { upsert: true, new: true }
+      );
+    }
+
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error("Register-check error:", err);
+    if (err.message && err.message.includes("connection")) {
+      return NextResponse.json({ detail: "Unable to connect to MongoDB." }, { status: 500 });
+    }
     return NextResponse.json({ detail: "Server error during registration check." }, { status: 500 });
   }
 }

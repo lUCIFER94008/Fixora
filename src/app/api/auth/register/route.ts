@@ -1,14 +1,19 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { User, Workshop } from "@/models/Schemas";
-import { signToken, verifyTokenString } from "@/lib/jwt";
+import { User, Workshop, OtpVerification } from "@/models/Schemas";
+import { signToken } from "@/lib/jwt";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 
 export async function POST(req: Request) {
   try {
     await connectToDatabase();
-    const body = await req.json();
+    
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch (e) {}
+
     const { 
       email, 
       phone, 
@@ -26,20 +31,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: "Missing required fields" }, { status: 400 });
     }
 
-    if (!phoneVerificationToken || !emailVerificationToken) {
+    // Verify verification state using MongoDB flags as source of truth
+    const verification = await OtpVerification.findOne({ email });
+    if (!verification || !verification.verifiedEmail || !verification.verifiedPhone) {
       return NextResponse.json({ detail: "SMS and Email OTP verifications are required before account creation." }, { status: 400 });
-    }
-
-    // Cryptographically verify phone verification token
-    const decodedPhone = verifyTokenString(phoneVerificationToken);
-    if (!decodedPhone || decodedPhone.phone !== phone || !decodedPhone.verified) {
-      return NextResponse.json({ detail: "Phone verification check failed or token has expired." }, { status: 400 });
-    }
-
-    // Cryptographically verify email verification token
-    const decodedEmail = verifyTokenString(emailVerificationToken);
-    if (!decodedEmail || decodedEmail.email !== email || !decodedEmail.verified) {
-      return NextResponse.json({ detail: "Email verification check failed or token has expired." }, { status: 400 });
     }
 
     // Double check email and phone registration
@@ -102,6 +97,9 @@ export async function POST(req: Request) {
       });
     }
 
+    // Clean up OTP verification document now that registration completed
+    await OtpVerification.deleteOne({ email });
+
     // Generate custom JWT token for client outbox calls compatibility
     const tokenPayload = { _id: user._id, email: user.email, role: user.role };
     const access_token = signToken(tokenPayload);
@@ -123,6 +121,9 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("Register route error:", err);
+    if (err.message && err.message.includes("connection")) {
+      return NextResponse.json({ detail: "Unable to connect to MongoDB." }, { status: 500 });
+    }
     return NextResponse.json({ detail: "Server error during registration." }, { status: 500 });
   }
 }

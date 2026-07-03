@@ -1,42 +1,47 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectToDatabase } from "@/lib/db";
-import { TempOtp } from "@/models/Schemas";
+import { OtpVerification } from "@/models/Schemas";
 import { signTokenWithExpiry } from "@/lib/jwt";
 
 export async function POST(req: Request) {
   try {
     await connectToDatabase();
-    const { email, otp } = await req.json();
+    
+    let email = "";
+    let otp = "";
+    try {
+      const body = await req.json();
+      email = body?.email || "";
+      otp = body?.otp || "";
+    } catch (e) {}
 
     if (!email || !otp) {
       return NextResponse.json({ detail: "Email and OTP parameters are required" }, { status: 400 });
     }
 
-    const tempOtp = await TempOtp.findOne({ email });
-    if (!tempOtp) {
-      return NextResponse.json({ detail: "OTP code has expired or was not requested." }, { status: 400 });
+    const verification = await OtpVerification.findOne({ email });
+    if (!verification) {
+      return NextResponse.json({ detail: "OTP expired" }, { status: 400 });
     }
 
-    // Check maximum attempts lock
-    if (tempOtp.attempts >= 5) {
-      return NextResponse.json({ detail: "Maximum verification attempts exceeded. Please request a new OTP." }, { status: 400 });
+    // Check if expired
+    const now = new Date();
+    if (now > verification.expiresAt) {
+      return NextResponse.json({ detail: "OTP expired" }, { status: 400 });
     }
 
     // Validate email OTP
-    const isMatch = bcrypt.compareSync(otp, tempOtp.hashedOtp);
+    const isMatch = bcrypt.compareSync(otp, verification.emailOTP);
     if (!isMatch) {
-      tempOtp.attempts += 1;
-      await tempOtp.save();
-      return NextResponse.json({ 
-        detail: `Invalid verification code. ${5 - tempOtp.attempts} attempts remaining.` 
-      }, { status: 400 });
+      return NextResponse.json({ detail: "Incorrect OTP" }, { status: 400 });
     }
 
-    // Valid OTP - clean up the temp OTP document
-    await TempOtp.deleteOne({ email });
+    // Update verifiedEmail state
+    verification.verifiedEmail = true;
+    await verification.save();
 
-    // Issue signed email verification token
+    // Issue signed email verification token (for frontend compatibility)
     const token = signTokenWithExpiry({ email, verified: true }, "10m");
 
     return NextResponse.json({
@@ -45,6 +50,9 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("Verify-email-otp route error:", err);
+    if (err.message && err.message.includes("connection")) {
+      return NextResponse.json({ detail: "Unable to connect to MongoDB." }, { status: 500 });
+    }
     return NextResponse.json({ detail: "Server error during Email OTP verification." }, { status: 500 });
   }
 }

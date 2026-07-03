@@ -265,23 +265,30 @@ const InvoiceSchema = new Schema<IInvoice>({
 
 export const Invoice: Model<IInvoice> = mongoose.models.Invoice || mongoose.model<IInvoice>("Invoice", InvoiceSchema);
 
-// --- TempOtp Schema ---
-export interface ITempOtp {
+// --- OtpVerification Schema ---
+export interface IOtpVerification {
   email: string;
-  hashedOtp: string;
-  attempts: number;
-  resends: number;
-  lastResendAt: Date;
-  createdAt: Date;
+  phone: string;
+  emailOTP: string;
+  smsOTP: string;
+  expiresAt: Date;
+  verifiedEmail: boolean;
+  verifiedPhone: boolean;
 }
 
-const TempOtpSchema = new Schema<ITempOtp>({
+const OtpVerificationSchema = new Schema<IOtpVerification>({
   email: { type: String, required: true, unique: true, index: true },
-  hashedOtp: { type: String, required: true },
-  attempts: { type: Number, default: 0 },
-  resends: { type: Number, default: 0 },
-  lastResendAt: { type: Date, default: Date.now },
-  createdAt: { type: Date, default: Date.now, expires: 300 }
+  phone: { type: String, required: true },
+  emailOTP: { type: String, required: true },
+  smsOTP: { type: String, required: true },
+  expiresAt: { type: Date, required: true, index: true },
+  verifiedEmail: { type: Boolean, default: false },
+  verifiedPhone: { type: Boolean, default: false }
 });
 
-export const TempOtp: Model<ITempOtp> = mongoose.models.TempOtp || mongoose.model<ITempOtp>("TempOtp", TempOtpSchema);
+// TTL Index for automatically removing expired OTPs after 5 minutes (calculated in expiresAt)
+OtpVerificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+export const OtpVerification: Model<IOtpVerification> = 
+  mongoose.models.OtpVerification || 
+  mongoose.model<IOtpVerification>("OtpVerification", OtpVerificationSchema);

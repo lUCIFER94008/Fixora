@@ -1,22 +1,63 @@
 import { NextResponse } from "next/server";
-import { verifyOTP } from "@/lib/twilio";
+import { connectToDatabase } from "@/lib/db";
+import { OtpVerification } from "@/models/Schemas";
+import { verifyOTP, formatToE164 } from "@/lib/twilio";
 import { signTokenWithExpiry } from "@/lib/jwt";
 
 export async function POST(req: Request) {
   try {
-    const { phone, otp } = await req.json();
+    await connectToDatabase();
+    
+    let phone = "";
+    let otp = "";
+    try {
+      const body = await req.json();
+      phone = body?.phone || "";
+      otp = body?.otp || "";
+    } catch (e) {}
 
     if (!phone || !otp) {
       return NextResponse.json({ detail: "Phone and OTP parameters are required" }, { status: 400 });
     }
 
-    const isValid = await verifyOTP(phone, otp);
-    if (!isValid) {
-      return NextResponse.json({ detail: "Invalid phone verification code" }, { status: 400 });
+    const formattedPhone = formatToE164(phone);
+
+    const verification = await OtpVerification.findOne({ phone: formattedPhone });
+    if (!verification) {
+      return NextResponse.json({ detail: "OTP expired" }, { status: 400 });
     }
 
+    const now = new Date();
+    if (now > verification.expiresAt) {
+      return NextResponse.json({ detail: "OTP expired" }, { status: 400 });
+    }
+
+    // Call Twilio Verify Checks API to verify the code
+    let isValid = false;
+    try {
+      isValid = await verifyOTP(formattedPhone, otp);
+    } catch (twilioErr: any) {
+      console.error("[TWILIO VERIFY ERROR] verifyOTP failed:", twilioErr.message);
+      
+      if (twilioErr.message === "Invalid Twilio credentials") {
+        return NextResponse.json({ detail: "Invalid Twilio credentials" }, { status: 500 });
+      }
+      if (twilioErr.message === "Twilio Verify Service SID not found") {
+        return NextResponse.json({ detail: "Twilio Verify Service SID not found" }, { status: 500 });
+      }
+      return NextResponse.json({ detail: twilioErr.message || "Failed to verify phone OTP via Twilio" }, { status: 500 });
+    }
+
+    if (!isValid) {
+      return NextResponse.json({ detail: "Incorrect OTP" }, { status: 400 });
+    }
+
+    // Update verifiedPhone flag in Mapped Session Document
+    verification.verifiedPhone = true;
+    await verification.save();
+
     // Issue signed phone verification token
-    const token = signTokenWithExpiry({ phone, verified: true }, "10m");
+    const token = signTokenWithExpiry({ phone: formattedPhone, verified: true }, "10m");
 
     return NextResponse.json({
       success: true,
@@ -24,6 +65,9 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("Verify-phone-otp route error:", err);
+    if (err.message && err.message.includes("connection")) {
+      return NextResponse.json({ detail: "Unable to connect to MongoDB." }, { status: 500 });
+    }
     return NextResponse.json({ detail: "Server error during SMS verification." }, { status: 500 });
   }
 }
