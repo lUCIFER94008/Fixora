@@ -281,7 +281,7 @@ const OtpVerificationSchema = new Schema<IOtpVerification>({
   phone: { type: String, required: true },
   emailOTP: { type: String, required: true },
   smsOTP: { type: String, required: true },
-  expiresAt: { type: Date, required: true, index: true },
+  expiresAt: { type: Date, required: true },
   verifiedEmail: { type: Boolean, default: false },
   verifiedPhone: { type: Boolean, default: false }
 });
