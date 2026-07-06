@@ -86,7 +86,7 @@ export default function AdminDashboard() {
       { time: "12:40:02", type: "INFO", message: "WebSocket connection established: user_id owner_mock_id" },
       { time: "12:38:15", type: "WARN", message: "AI Diagnostic confidence score low: 72% for complaint c2" },
       { time: "12:35:44", type: "INFO", message: "Invoice payout logged: amount ₹4,200 for complaint c1" },
-      { time: "12:30:10", type: "SECURITY", message: "Google OAuth token verification handshakes complete." }
+      { time: "12:30:10", type: "SECURITY", message: "JWT authentication credentials validation complete." }
     ]);
   };
 

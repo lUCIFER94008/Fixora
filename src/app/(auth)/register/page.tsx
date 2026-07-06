@@ -15,7 +15,6 @@ import {
   UploadCloud
 } from "lucide-react";
 import api from "@/services/api";
-import { signIn } from "next-auth/react";
 
 export default function Register() {
   const router = useRouter();
@@ -36,21 +35,6 @@ export default function Register() {
   
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    setError("");
-    try {
-      const cookieRole = role === "owner" ? "vehicleOwner" : "workshopOwner";
-      document.cookie = `fixora_selected_role=${cookieRole}; path=/; max-age=600`;
-      await signIn("google", { callbackUrl: "/dashboard" });
-    } catch (e) {
-      console.error(e);
-      setError("Google Login failed. Please try again.");
-      setGoogleLoading(false);
-    }
-  };
   
   // Password Strength
   const getPasswordStrength = () => {
@@ -228,17 +212,6 @@ export default function Register() {
               </button>
             </div>
 
-            {/* OAuth Buttons */}
-            <div className="w-full">
-              <button 
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={googleLoading}
-                className="w-full py-2.5 rounded-[16px] border border-[#FFD400] bg-transparent hover:bg-[#FFD400]/10 transition-all text-xs font-semibold flex items-center justify-center gap-2 text-white disabled:opacity-50"
-              >
-                Google
-              </button>
-            </div>
 
             {/* Avatar Upload */}
             <div className="flex items-center gap-4 bg-[#111111] p-3 rounded-[18px] border border-[rgba(255,255,255,0.04)]">

@@ -1,15 +1,18 @@
 import nodemailer from "nodemailer";
 
-const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
-const smtpPort = parseInt(process.env.SMTP_PORT || "587");
-const smtpUser = process.env.EMAIL_SERVER_USER || process.env.SMTP_USER;
-const smtpPass = process.env.EMAIL_SERVER_PASSWORD || process.env.SMTP_PASS;
-const emailFrom = process.env.EMAIL_FROM || "no-reply@fixora.com";
-
 function getTransporter(): nodemailer.Transporter {
-  if (!smtpUser || !smtpPass) {
-    throw new Error("SMTP authentication credentials not configured in environment");
+  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+  const smtpPort = parseInt(process.env.SMTP_PORT || "587");
+  const smtpUser = process.env.EMAIL_SERVER_USER || process.env.SMTP_USER;
+  const smtpPass = process.env.EMAIL_SERVER_PASSWORD || process.env.SMTP_PASS;
+
+  if (!smtpUser) {
+    throw new Error("EMAIL_SERVER_USER is missing");
   }
+  if (!smtpPass) {
+    throw new Error("EMAIL_SERVER_PASSWORD is missing");
+  }
+
   return nodemailer.createTransport({
     host: smtpHost,
     port: smtpPort,
@@ -25,7 +28,9 @@ export async function sendEmailOTP(email: string, otp: string, userName?: string
   const subject = "Verify your FIXORA account";
   const name = userName || "Driver";
   const logoUrl = "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png";
-  
+  const emailFrom = process.env.EMAIL_FROM || "no-reply@fixora.com";
+  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #080808; color: #FFFFFF; padding: 40px; border-radius: 16px; max-width: 600px; margin: 0 auto; border: 1px solid rgba(255, 212, 0, 0.15); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);">
       <div style="text-align: center; margin-bottom: 30px;">
@@ -67,13 +72,28 @@ export async function sendEmailOTP(email: string, otp: string, userName?: string
     });
     return true;
   } catch (error: any) {
-    console.error("[SMTP SERVER ERROR] Nodemailer sendEmailOTP error:", error.message || error);
-    
-    // Explicitly throw SMTP authentication errors
-    if (error.code === 'EAUTH' || error.message.includes('Authentication') || error.message.includes('Username and Password')) {
+    console.error("[SMTP SERVER ERROR] Nodemailer sendEmailOTP error:", error);
+    const errMsg = error.message || "";
+    const errCode = error.code || "";
+
+    // If it's the custom validation checks we threw, rethrow directly
+    if (errMsg === "EMAIL_SERVER_USER is missing" || errMsg === "EMAIL_SERVER_PASSWORD is missing") {
+      throw error;
+    }
+
+    // Handle authentication failures
+    if (errCode === 'EAUTH' || errMsg.includes('Authentication') || errMsg.includes('Username and Password') || errMsg.includes('535')) {
+      if (smtpHost.includes("gmail.com")) {
+        throw new Error("Invalid Gmail App Password");
+      }
       throw new Error("SMTP authentication failed");
     }
-    
-    throw new Error(error.message || "Failed to send email verification");
+
+    // Handle connection failures
+    if (errCode === 'ECONNREFUSED' || errCode === 'ETIMEOUT' || errMsg.includes('connect') || errMsg.includes('timeout')) {
+      throw new Error("Unable to connect to SMTP server");
+    }
+
+    throw new Error(errMsg || "Failed to send email verification");
   }
 }

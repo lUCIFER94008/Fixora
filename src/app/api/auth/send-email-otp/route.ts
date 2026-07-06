@@ -56,10 +56,18 @@ export async function POST(req: Request) {
       // Clean up verification document if SMTP failed
       await OtpVerification.deleteOne({ email });
 
-      if (smtpErr.message === "SMTP authentication failed") {
-        return NextResponse.json({ detail: "SMTP authentication failed" }, { status: 500 });
+      const specificErrors = [
+        "SMTP authentication failed",
+        "Invalid Gmail App Password",
+        "EMAIL_SERVER_USER is missing",
+        "EMAIL_SERVER_PASSWORD is missing",
+        "Unable to connect to SMTP server"
+      ];
+      
+      if (specificErrors.includes(smtpErr.message)) {
+        return NextResponse.json({ detail: smtpErr.message }, { status: 500 });
       }
-      return NextResponse.json({ detail: "Failed to dispatch email verification message" }, { status: 500 });
+      return NextResponse.json({ detail: smtpErr.message || "Failed to dispatch email verification message" }, { status: 500 });
     }
 
     return NextResponse.json({
