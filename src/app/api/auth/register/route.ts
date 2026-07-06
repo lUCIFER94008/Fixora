@@ -33,7 +33,13 @@ export async function POST(req: Request) {
 
     // Verify verification state using MongoDB flags as source of truth
     const verification = await OtpVerification.findOne({ email });
-    if (!verification || !verification.verifiedEmail || !verification.verifiedPhone) {
+    if (!verification) {
+      return NextResponse.json({ detail: "OTP expired" }, { status: 400 });
+    }
+
+    const requirePhoneVerify = verification.smsOTP !== "failed" && verification.smsOTP !== "skipped";
+
+    if (!verification.verifiedEmail || (requirePhoneVerify && !verification.verifiedPhone)) {
       return NextResponse.json({ detail: "SMS and Email OTP verifications are required before account creation." }, { status: 400 });
     }
 
@@ -75,7 +81,7 @@ export async function POST(req: Request) {
       profile_image: profileImageUrl,
       profileImage: profileImageUrl,
       provider: "credentials",
-      phoneVerified: true,
+      phoneVerified: requirePhoneVerify,
       emailVerified: true,
       created_at: new Date(),
       createdAt: new Date()

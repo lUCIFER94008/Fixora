@@ -46,7 +46,6 @@ export default function Verify() {
 
   const maskPhone = (ph: string) => {
     if (!ph) return "";
-    // format expected: +919876543210
     if (ph.startsWith("+91") && ph.length === 13) {
       return `+91******${ph.slice(-4)}`;
     }
@@ -64,8 +63,11 @@ export default function Verify() {
     return `${user.slice(0, 3)}*****@${domain}`;
   };
 
+  const smsSent = pendingData?.smsSent ?? true;
+  const emailSent = pendingData?.emailSent ?? true;
+
   const handleResendSms = async () => {
-    if (cooldown > 0 || !pendingData?.phone) return;
+    if (cooldown > 0 || !pendingData?.phone || !smsSent) return;
     setError("");
     setResendingSms(true);
     try {
@@ -79,7 +81,7 @@ export default function Verify() {
   };
 
   const handleResendEmail = async () => {
-    if (cooldown > 0 || !pendingData?.email) return;
+    if (cooldown > 0 || !pendingData?.email || !emailSent) return;
     setError("");
     setResendingEmail(true);
     try {
@@ -98,39 +100,43 @@ export default function Verify() {
     setError("");
     setLoading(true);
 
-    if (smsOtp.length !== 6 || emailOtp.length !== 6) {
+    if ((smsSent && smsOtp.length !== 6) || (emailSent && emailOtp.length !== 6)) {
       setError("Please enter valid 6-digit verification codes.");
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Verify SMS OTP via Twilio
-      let phoneVerificationToken = "";
-      try {
-        const phoneRes = await api.post("/api/auth/verify-phone-otp", {
-          phone: pendingData.phone,
-          otp: smsOtp
-        });
-        phoneVerificationToken = phoneRes.data.token;
-      } catch (err: any) {
-        setError(err.response?.data?.detail || "Incorrect SMS OTP. Please try again.");
-        setLoading(false);
-        return;
+      // 1. Verify SMS OTP via Twilio conditionally
+      let phoneVerificationToken = "skipped";
+      if (smsSent) {
+        try {
+          const phoneRes = await api.post("/api/auth/verify-phone-otp", {
+            phone: pendingData.phone,
+            otp: smsOtp
+          });
+          phoneVerificationToken = phoneRes.data.token;
+        } catch (err: any) {
+          setError(err.response?.data?.detail || "Incorrect SMS OTP. Please try again.");
+          setLoading(false);
+          return;
+        }
       }
 
-      // 2. Verify Email OTP
-      let emailVerificationToken = "";
-      try {
-        const emailRes = await api.post("/api/auth/verify-email-otp", {
-          email: pendingData.email,
-          otp: emailOtp
-        });
-        emailVerificationToken = emailRes.data.token;
-      } catch (err: any) {
-        setError(err.response?.data?.detail || "Incorrect Email OTP. Please try again.");
-        setLoading(false);
-        return;
+      // 2. Verify Email OTP conditionally
+      let emailVerificationToken = "skipped";
+      if (emailSent) {
+        try {
+          const emailRes = await api.post("/api/auth/verify-email-otp", {
+            email: pendingData.email,
+            otp: emailOtp
+          });
+          emailVerificationToken = emailRes.data.token;
+        } catch (err: any) {
+          setError(err.response?.data?.detail || "Incorrect Email OTP. Please try again.");
+          setLoading(false);
+          return;
+        }
       }
 
       // 3. Finalize User Creation in MongoDB
@@ -173,6 +179,34 @@ export default function Verify() {
       setLoading(false);
     }
   };
+
+  const getBannerInfo = () => {
+    if (!pendingData) return null;
+    
+    if (smsSent && emailSent) {
+      return {
+        message: "✅ Verification code sent to your phone and email.",
+        type: "success"
+      };
+    } else if (!smsSent && emailSent) {
+      return {
+        message: "⚠ Phone number is not verified in the Twilio Trial account. Verification code has been sent to your email.",
+        type: "warning"
+      };
+    } else if (smsSent && !emailSent) {
+      return {
+        message: "⚠ Email delivery failed. Verification code has been sent to your phone.",
+        type: "warning"
+      };
+    } else {
+      return {
+        message: "❌ Unable to send verification code. Please try again later.",
+        type: "error"
+      };
+    }
+  };
+
+  const banner = getBannerInfo();
 
   // If no registration data, show notice
   if (!pendingData) {
@@ -218,13 +252,25 @@ export default function Verify() {
             </Link>
             <div className="pt-2">
               <h2 className="text-xl font-bold uppercase tracking-wide">
-                Verify Your Account
+                {!smsSent ? "Email Verification" : "Verify Your Account"}
               </h2>
               <p className="text-[#9A9A9A] text-xs mt-1">
-                Enter OTP credentials dispatched to your coordinates.
+                {!smsSent ? "Enter OTP sent to your registered email." : "Enter OTP credentials dispatched to your coordinates."}
               </p>
             </div>
           </div>
+
+          {banner && (
+            <div className={`p-3 rounded-[12px] text-xs flex items-start gap-2 font-sans ${
+              banner.type === "success" 
+                ? "bg-[#28C76F]/10 border border-[#28C76F]/20 text-[#28C76F]" 
+                : banner.type === "warning" 
+                  ? "bg-[#FF9F43]/10 border border-[#FF9F43]/20 text-[#FF9F43]"
+                  : "bg-[#EA5455]/10 border border-[#EA5455]/20 text-[#EA5455]"
+            }`}>
+              <div className="leading-relaxed">{banner.message}</div>
+            </div>
+          )}
 
           {error && (
             <div className="p-3 rounded-[12px] bg-[#FF5959]/10 border border-[#FF5959]/20 text-[#FF5959] text-xs flex items-center gap-2 font-mono">
@@ -236,14 +282,18 @@ export default function Verify() {
             
             {/* Coordinate Masking display */}
             <div className="space-y-3.5 bg-[#111111] p-4 rounded-[18px] border border-[rgba(255,255,255,0.04)] font-sans">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-[#9A9A9A] font-medium">SMS Verification:</span>
-                <span className="text-white font-bold font-mono">{maskPhone(pendingData.phone)}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-[#9A9A9A] font-medium">Email Verification:</span>
-                <span className="text-white font-bold font-mono">{maskEmail(pendingData.email)}</span>
-              </div>
+              {smsSent && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-[#9A9A9A] font-medium">SMS Verification:</span>
+                  <span className="text-white font-bold font-mono">{maskPhone(pendingData.phone)}</span>
+                </div>
+              )}
+              {emailSent && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-[#9A9A9A] font-medium">Email Verification:</span>
+                  <span className="text-white font-bold font-mono">{maskEmail(pendingData.email)}</span>
+                </div>
+              )}
             </div>
 
             {/* Countdown visual */}
@@ -261,38 +311,42 @@ export default function Verify() {
             </div>
 
             {/* SMS OTP input */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">SMS OTP Code</label>
-              <input 
-                type="text" 
-                maxLength={6}
-                value={smsOtp}
-                onChange={(e) => setSmsOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                required
-                placeholder="[ _ _ _ _ _ _ ]" 
-                className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-center text-sm font-mono tracking-widest text-white focus:outline-none focus:border-[#FFD400] focus:ring-1 focus:ring-[#FFD400]/40 placeholder-[#5A5A5A]"
-              />
-            </div>
+            {smsSent && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">SMS OTP Code</label>
+                <input 
+                  type="text" 
+                  maxLength={6}
+                  value={smsOtp}
+                  onChange={(e) => setSmsOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  required
+                  placeholder="[ _ _ _ _ _ _ ]" 
+                  className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-center text-sm font-mono tracking-widest text-white focus:outline-none focus:border-[#FFD400] focus:ring-1 focus:ring-[#FFD400]/40 placeholder-[#5A5A5A]"
+                />
+              </div>
+            )}
 
             {/* Email OTP input */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">Email OTP Code</label>
-              <input 
-                type="text" 
-                maxLength={6}
-                value={emailOtp}
-                onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                required
-                placeholder="[ _ _ _ _ _ _ ]" 
-                className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-center text-sm font-mono tracking-widest text-white focus:outline-none focus:border-[#FFD400] focus:ring-1 focus:ring-[#FFD400]/40 placeholder-[#5A5A5A]"
-              />
-            </div>
+            {emailSent && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">Email OTP Code</label>
+                <input 
+                  type="text" 
+                  maxLength={6}
+                  value={emailOtp}
+                  onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  required
+                  placeholder="[ _ _ _ _ _ _ ]" 
+                  className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-center text-sm font-mono tracking-widest text-white focus:outline-none focus:border-[#FFD400] focus:ring-1 focus:ring-[#FFD400]/40 placeholder-[#5A5A5A]"
+                />
+              </div>
+            )}
 
             {/* Resend Actions Grid */}
             <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 type="button"
-                disabled={cooldown > 0 || resendingSms}
+                disabled={cooldown > 0 || resendingSms || !smsSent}
                 onClick={handleResendSms}
                 className="py-2.5 rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-transparent hover:bg-white/5 transition-all text-[11px] font-semibold text-[#9A9A9A] hover:text-white disabled:opacity-40"
               >
@@ -300,7 +354,7 @@ export default function Verify() {
               </button>
               <button
                 type="button"
-                disabled={cooldown > 0 || resendingEmail}
+                disabled={cooldown > 0 || resendingEmail || !emailSent}
                 onClick={handleResendEmail}
                 className="py-2.5 rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-transparent hover:bg-white/5 transition-all text-[11px] font-semibold text-[#9A9A9A] hover:text-white disabled:opacity-40"
               >
@@ -311,7 +365,7 @@ export default function Verify() {
             {/* Submit verifying */}
             <button 
               type="submit" 
-              disabled={loading || smsOtp.length < 6 || emailOtp.length < 6}
+              disabled={loading || (smsSent && smsOtp.length < 6) || (emailSent && emailOtp.length < 6)}
               className="w-full py-3.5 rounded-[16px] font-bold bg-[#FFD400] text-black hover:bg-[#FFC300] hover:scale-[1.02] transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-30 uppercase tracking-wider mt-4"
             >
               {loading ? "Verifying Credentials..." : "Verify & Create Account"} <CheckCircle2 size={14} />

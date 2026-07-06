@@ -116,16 +116,11 @@ export default function Register() {
     const fullPhone = `+91${rawPhone}`;
 
     try {
-      // 1. Pre-check if email/phone exists
-      await api.post("/api/auth/register-check", { email, phone: fullPhone });
+      // 1. Unified register-check initializes availability validations and OTP dispatches
+      const res = await api.post("/api/auth/register-check", { email, phone: fullPhone, name });
+      const { smsSent, emailSent, smsError } = res.data;
       
-      // 2. Trigger Phone OTP & Email OTP in parallel
-      await Promise.all([
-        api.post("/api/auth/send-phone-otp", { phone: fullPhone }),
-        api.post("/api/auth/send-email-otp", { email })
-      ]);
-
-      // 3. Save details to sessionStorage
+      // 2. Save details to sessionStorage along with send flags
       sessionStorage.setItem("fixora_pending_registration", JSON.stringify({
         name,
         email,
@@ -134,10 +129,13 @@ export default function Register() {
         role,
         profileImage,
         workshopName: role === "workshop" ? workshopName : undefined,
-        workshopAddress: role === "workshop" ? workshopAddress : undefined
+        workshopAddress: role === "workshop" ? workshopAddress : undefined,
+        smsSent,
+        emailSent,
+        smsError
       }));
 
-      // 4. Redirect to verify page
+      // 3. Redirect to verify page
       router.push("/verify");
     } catch (err: any) {
       setError(err.response?.data?.detail || "Unable to send SMS or Email OTP. Please check services configuration.");
