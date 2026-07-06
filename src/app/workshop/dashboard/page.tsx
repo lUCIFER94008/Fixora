@@ -23,7 +23,12 @@ import {
   FileText,
   Trash2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck,
+  MapPin,
+  Calendar,
+  AlertTriangle,
+  FolderOpen
 } from "lucide-react";
 import api from "@/services/api";
 import { useChat } from "@/hooks/useChat";
@@ -33,15 +38,14 @@ export default function WorkshopDashboard() {
   const [user, setUser] = useState<any>(null);
   const [workshop, setWorkshop] = useState<any>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState("queue"); // queue, billing, mechanics, reviews, chat
+  const [activeTab, setActiveTab] = useState("dashboard"); // dashboard, complaints, repairs, customers, vehicles, diagnostics, analytics, profile, settings, chat
   
   // Datasets
   const [complaints, setComplaints] = useState<any[]>([]);
   const [activeComplaint, setActiveComplaint] = useState<any>(null);
   const [mechanics, setMechanics] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>({ revenue: 14500, jobsCount: 12, rating: 4.9 });
-
+  
   // Mechanic form
   const [mechName, setMechName] = useState("");
   const [mechSpecialty, setMechSpecialty] = useState("");
@@ -84,12 +88,12 @@ export default function WorkshopDashboard() {
       setWorkshop(response.data);
       
       // Load workshop details
-      fetchComplaintsQueue();
+      fetchComplaintsQueue(response.data._id);
       fetchMechanics();
       fetchReviews(response.data._id);
     } catch {
       // Mocks
-      setWorkshop({
+      const mockW = {
         _id: "w1",
         name: "NEON HYPERGARAGE",
         address: "77 Cyberpunk Boulevard",
@@ -97,8 +101,9 @@ export default function WorkshopDashboard() {
         rating: 4.9,
         review_count: 12,
         is_verified: true
-      });
-      fetchComplaintsQueue();
+      };
+      setWorkshop(mockW);
+      fetchComplaintsQueue("w1");
       fetchMechanics();
       fetchReviews("w1");
     }
@@ -116,7 +121,11 @@ export default function WorkshopDashboard() {
         }
       }
     },
-    onStatusUpdate: () => {},
+    onStatusUpdate: () => {
+      if (workshop) {
+        fetchComplaintsQueue(workshop._id);
+      }
+    },
     onTypingReceived: (typingEvent) => {
       if (activeChatOwner && typingEvent.sender_id === activeChatOwner._id) {
         setOwnerIsTyping(typingEvent.is_typing);
@@ -124,23 +133,29 @@ export default function WorkshopDashboard() {
     }
   });
 
-  const fetchComplaintsQueue = async () => {
+  const fetchComplaintsQueue = async (wsId?: string) => {
     try {
       const response = await api.get("/api/complaints");
       setComplaints(response.data);
-      if (response.data.length > 0) {
-        setActiveComplaint(response.data[0]);
-        setTechNotes(response.data[0].technician_notes || "");
+      
+      // Filter accepted ones for active queue
+      const accepted = response.data.filter((c: any) => c.status !== "Pending");
+      if (accepted.length > 0) {
+        setActiveComplaint(accepted[0]);
+        setTechNotes(accepted[0].technician_notes || "");
       }
     } catch {
-      setComplaints([
+      const mockList = [
         {
           _id: "c1",
-          owner_id: "owner_mock_id",
+          owner_id: { _id: "owner_mock_id", name: "Rohan Sharma", email: "rohan@gmail.com" },
+          vehicle_id: { _id: "v1", make: "Tata", model: "Nexon EV", license_plate: "MH-12-NE-9999", fuel_type: "Electric" },
           title: "EV Drivetrain High-Frequency Whine",
           description: "Accelerating past 80 km/h triggers rear unit squealing.",
           status: "In Progress",
           priority: "High",
+          category: "Engine",
+          location: "Pune, Maharashtra",
           estimated_cost: 4200,
           estimated_completion: "3 days",
           technician_notes: "Rear differentials ordered from warehouse.",
@@ -150,9 +165,32 @@ export default function WorkshopDashboard() {
             severity: "High",
             recommended_action: "Rear Unit audit suggested."
           },
-          created_at: new Date().toISOString()
+          created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          _id: "c2",
+          owner_id: { _id: "owner_mock_2", name: "Priya Patel", email: "priya@gmail.com" },
+          vehicle_id: { _id: "v2", make: "Ather", model: "450X", license_plate: "KA-03-AT-1234", fuel_type: "Electric" },
+          title: "Battery charging failure past 80%",
+          description: "Battery stops charging and throws a code when reaching 80%.",
+          status: "Pending",
+          priority: "Urgent",
+          category: "Electrical",
+          location: "Indiranagar, Bangalore",
+          ai_diagnostics: {
+            category: "Electrical",
+            severity: "Critical",
+            recommended_action: "Examine thermal control sensors."
+          },
+          created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString()
         }
-      ]);
+      ];
+      setComplaints(mockList);
+      const accepted = mockList.filter(c => c.status !== "Pending");
+      if (accepted.length > 0) {
+        setActiveComplaint(accepted[0]);
+        setTechNotes(accepted[0].technician_notes || "");
+      }
     }
   };
 
@@ -162,7 +200,8 @@ export default function WorkshopDashboard() {
       setMechanics(response.data);
     } catch {
       setMechanics([
-        { _id: "m1", name: "Marcus Vance", specialty: "EV Gearing", phone: "+1444111222", status: "Available" }
+        { _id: "m1", name: "Marcus Vance", specialty: "EV Gearing", phone: "+919876543210", status: "Available" },
+        { _id: "m2", name: "Vikram Singh", specialty: "Battery Calibration", phone: "+919876543211", status: "Available" }
       ]);
     }
   };
@@ -173,15 +212,15 @@ export default function WorkshopDashboard() {
       setReviews(response.data);
     } catch {
       setReviews([
-        { _id: "r1", rating: 5, comment: "Exceptional speed diagnostics and cool lounge!", created_at: new Date().toISOString() }
+        { _id: "r1", rating: 5, comment: "Exceptional speed diagnostics and cool lounge!", created_at: new Date().toISOString() },
+        { _id: "r2", rating: 4, comment: "Quick EV diagnostic swap, highly recommend.", created_at: new Date().toISOString() }
       ]);
     }
   };
 
-  const handleUpdateStatus = async (statusStr: string) => {
-    if (!activeComplaint) return;
+  const handleUpdateStatus = async (complaintId: string, statusStr: string) => {
     try {
-      const response = await api.put(`/api/complaints/${activeComplaint._id}/status`, {
+      const response = await api.put(`/api/complaints/${complaintId}/status`, {
         status: statusStr,
         technician_notes: techNotes || undefined,
         estimated_cost: repairCost || undefined,
@@ -189,20 +228,29 @@ export default function WorkshopDashboard() {
         repair_image: repairImage || undefined
       });
       alert(`Job status updated to ${statusStr}`);
-      fetchComplaintsQueue();
-      setActiveComplaint(response.data);
+      if (workshop) {
+        fetchComplaintsQueue(workshop._id);
+      }
     } catch {
       // Mock update
-      const mockUpdated = { 
-        ...activeComplaint, 
-        status: statusStr,
-        technician_notes: techNotes,
-        estimated_cost: repairCost || activeComplaint.estimated_cost,
-        estimated_completion: repairCompletion || activeComplaint.estimated_completion,
-        repair_images: repairImage ? [...(activeComplaint.repair_images || []), repairImage] : (activeComplaint.repair_images || [])
-      };
-      setActiveComplaint(mockUpdated);
-      setComplaints(prev => prev.map(c => c._id === activeComplaint._id ? mockUpdated : c));
+      setComplaints(prev => prev.map(c => {
+        if (c._id === complaintId) {
+          const updated = {
+            ...c,
+            status: statusStr,
+            workshop_id: user?._id,
+            technician_notes: techNotes || c.technician_notes,
+            estimated_cost: repairCost || c.estimated_cost,
+            estimated_completion: repairCompletion || c.estimated_completion,
+            repair_images: repairImage ? [...(c.repair_images || []), repairImage] : (c.repair_images || [])
+          };
+          if (activeComplaint?._id === complaintId) {
+            setActiveComplaint(updated);
+          }
+          return updated;
+        }
+        return c;
+      }));
       alert(`Simulated job status updated to ${statusStr}`);
     }
   };
@@ -248,10 +296,10 @@ export default function WorkshopDashboard() {
         discount: discount
       });
       alert("Billing Invoice created and dispatched to customer.");
-      setActiveTab("queue");
+      setActiveTab("repairs");
     } catch {
       alert("Simulated Invoice generated successfully.");
-      setActiveTab("queue");
+      setActiveTab("repairs");
     } finally {
       setInvoiceLoading(false);
     }
@@ -259,7 +307,6 @@ export default function WorkshopDashboard() {
 
   const handleSelectCustomerChat = async (ownerId: string) => {
     try {
-      // Find user name
       const responseUser = await api.get("/api/chat/contacts");
       const ownerObj = responseUser.data.find((c: any) => c._id === ownerId) || { _id: ownerId, name: "Customer Node" };
       setActiveChatOwner(ownerObj);
@@ -267,7 +314,6 @@ export default function WorkshopDashboard() {
       
       const responseChat = await api.get(`/api/chat/history/${ownerId}`);
       setChatMessages(responseChat.data);
-      // Auto-extract AI suggestions from last message
       if (responseChat.data.length > 0) {
         const last = responseChat.data[responseChat.data.length - 1];
         if (last.sender_id === ownerId && last.ai_replies) {
@@ -275,7 +321,7 @@ export default function WorkshopDashboard() {
         }
       }
     } catch {
-      setActiveChatOwner({ _id: ownerId, name: "Jane Doe" });
+      setActiveChatOwner({ _id: ownerId, name: "Rohan Sharma" });
       setActiveTab("chat");
       setChatMessages([
         { sender_id: ownerId, content: "Hi, when is the drivetrains diagnostic scheduled?", created_at: new Date() }
@@ -313,6 +359,16 @@ export default function WorkshopDashboard() {
     router.push("/");
   };
 
+  // Metrics calculators
+  const totalComplaints = complaints.length;
+  const pendingCount = complaints.filter(c => c.status === "Pending").length;
+  const acceptedCount = complaints.filter(c => c.status === "Accepted" || c.status === "In Progress").length;
+  const completedCount = complaints.filter(c => c.status === "Completed").length;
+  const calculatedRevenue = 145000 + complaints
+    .filter(c => c.status === "Completed")
+    .reduce((sum, c) => sum + (c.estimated_cost || 0), 0);
+  const uniqueCustomers = Array.from(new Set(complaints.map(c => c.owner_id?._id || c.owner_id))).length;
+
   return (
     <div className="min-h-screen bg-[#080808] text-white flex flex-col md:flex-row overflow-hidden font-sans">
       
@@ -321,7 +377,7 @@ export default function WorkshopDashboard() {
         sidebarCollapsed ? "w-full md:w-20" : "w-full md:w-64"
       }`}>
         <div>
-          {/* Logo & Collapse button */}
+          {/* Logo */}
           <div className="p-6 border-b border-[rgba(255,255,255,0.06)] flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Image 
@@ -329,6 +385,7 @@ export default function WorkshopDashboard() {
                 alt="FIXORA" 
                 width={25} 
                 height={25} 
+                className="rounded-full"
               />
               {!sidebarCollapsed && <span className="font-bold text-base text-white tracking-tight">FIXORA</span>}
             </div>
@@ -340,7 +397,7 @@ export default function WorkshopDashboard() {
             </button>
           </div>
 
-          {/* User profile badge */}
+          {/* Profile Header */}
           <div className={`p-4 mx-4 my-4 rounded-[18px] bg-[#151515] border border-[rgba(255,255,255,0.04)] flex items-center gap-3 ${
             sidebarCollapsed ? "justify-center" : ""
           }`}>
@@ -354,61 +411,37 @@ export default function WorkshopDashboard() {
             {!sidebarCollapsed && (
               <div className="text-left overflow-hidden">
                 <div className="text-xs font-semibold truncate">{workshop?.name || "Workshop Garage"}</div>
-                <span className="text-[9px] font-bold text-[#FFD400] tracking-wide block">GARAGE CORE</span>
+                <span className="text-[9px] font-bold text-[#FFD400] tracking-wide block">GARAGE CENTRAL</span>
               </div>
             )}
           </div>
 
-          {/* Nav links */}
+          {/* Navigation Links */}
           <nav className="px-4 py-2 space-y-1 text-xs font-semibold">
-            <div className="relative">
-              {activeTab === "queue" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
-              <button 
-                onClick={() => setActiveTab("queue")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
-                  activeTab === "queue" ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                } ${sidebarCollapsed ? "justify-center" : ""}`}
-              >
-                <Wrench size={14} />
-                {!sidebarCollapsed && <span>Service Queue</span>}
-              </button>
-            </div>
-            <div className="relative">
-              {activeTab === "billing" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
-              <button 
-                onClick={() => setActiveTab("billing")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
-                  activeTab === "billing" ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                } ${sidebarCollapsed ? "justify-center" : ""}`}
-              >
-                <FileText size={14} />
-                {!sidebarCollapsed && <span>Billing Invoices</span>}
-              </button>
-            </div>
-            <div className="relative">
-              {activeTab === "mechanics" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
-              <button 
-                onClick={() => setActiveTab("mechanics")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
-                  activeTab === "mechanics" ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                } ${sidebarCollapsed ? "justify-center" : ""}`}
-              >
-                <Users size={14} />
-                {!sidebarCollapsed && <span>Mechanics</span>}
-              </button>
-            </div>
-            <div className="relative">
-              {activeTab === "reviews" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
-              <button 
-                onClick={() => setActiveTab("reviews")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
-                  activeTab === "reviews" ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                } ${sidebarCollapsed ? "justify-center" : ""}`}
-              >
-                <Award size={14} />
-                {!sidebarCollapsed && <span>Ratings & Reviews</span>}
-              </button>
-            </div>
+            {[
+              { id: "dashboard", label: "Dashboard", icon: <Layers size={14} /> },
+              { id: "complaints", label: "Complaints", icon: <AlertTriangle size={14} /> },
+              { id: "repairs", label: "Repair Requests", icon: <Wrench size={14} /> },
+              { id: "customers", label: "Customers", icon: <Users size={14} /> },
+              { id: "vehicles", label: "Vehicles", icon: <Car size={14} /> },
+              { id: "diagnostics", label: "AI Diagnostics", icon: <Sparkles size={14} /> },
+              { id: "analytics", label: "Analytics", icon: <TrendingUp size={14} /> },
+              { id: "profile", label: "Profile", icon: <User size={14} /> },
+              { id: "settings", label: "Settings", icon: <Wrench size={14} /> }
+            ].map((tab) => (
+              <div key={tab.id} className="relative">
+                {activeTab === tab.id && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
+                <button 
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
+                    activeTab === tab.id ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
+                  } ${sidebarCollapsed ? "justify-center" : ""}`}
+                >
+                  {tab.icon}
+                  {!sidebarCollapsed && <span>{tab.label}</span>}
+                </button>
+              </div>
+            ))}
             {activeChatOwner && (
               <div className="relative">
                 {activeTab === "chat" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
@@ -443,47 +476,161 @@ export default function WorkshopDashboard() {
       {/* Main Panel */}
       <main className="flex-1 p-6 md:p-12 overflow-y-auto space-y-6 max-w-[1400px] mx-auto w-full">
         
-        {/* STATS OVERVIEW */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-left">
-          <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] flex items-center justify-between shadow-md">
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A]">Total Revenue</span>
-              <div className="text-2xl font-bold text-[#FFD400]">₹{stats.revenue.toLocaleString()}</div>
+        {/* TAB: DASHBOARD */}
+        {activeTab === "dashboard" && (
+          <div className="space-y-8 text-left">
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight">GARAGE CONTROL CENTER</h1>
+              <p className="text-xs text-[#9A9A9A] mt-1">Overview of telemetry feeds, repair workflows, and metrics.</p>
             </div>
-            <TrendingUp className="text-[#FFD400]" size={20} />
-          </div>
-          <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] flex items-center justify-between shadow-md">
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A]">Completed Jobs</span>
-              <div className="text-2xl font-bold text-white">{stats.jobsCount}</div>
-            </div>
-            <Activity className="text-white" size={20} />
-          </div>
-          <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] flex items-center justify-between shadow-md">
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A]">Garage Rating</span>
-              <div className="text-2xl font-bold text-[#7CFF7A]">{stats.rating} / 5.0</div>
-            </div>
-            <Award className="text-[#7CFF7A]" size={20} />
-          </div>
-        </div>
 
-        {/* TAB: QUEUE */}
-        {activeTab === "queue" && (
+            {/* Metrics cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {[
+                { label: "Total Complaints", value: totalComplaints, color: "text-white" },
+                { label: "Pending", value: pendingCount, color: "text-[#FF9F43]" },
+                { label: "Accepted", value: acceptedCount, color: "text-[#00CFDD]" },
+                { label: "Completed", value: completedCount, color: "text-[#28C76F]" },
+                { label: "Revenue", value: `₹${calculatedRevenue.toLocaleString()}`, color: "text-[#FFD400]" },
+                { label: "Customers", value: uniqueCustomers, color: "text-white" }
+              ].map((card, i) => (
+                <div key={i} className="p-4 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[18px] shadow-sm">
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-[#9A9A9A] block">{card.label}</span>
+                  <div className={`text-xl font-bold mt-2 ${card.color}`}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Recent Complaints Table */}
+            <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] shadow-md">
+              <h3 className="text-sm font-bold uppercase tracking-wider mb-4">Recent Complaints Log</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[#9A9A9A] uppercase tracking-wider text-[9px] font-bold">
+                      <th className="py-3 px-4">Customer</th>
+                      <th className="py-3 px-4">Vehicle</th>
+                      <th className="py-3 px-4">Issue</th>
+                      <th className="py-3 px-4">Priority</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {complaints.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-[#9A9A9A]">No active complaints in grid database.</td>
+                      </tr>
+                    ) : (
+                      complaints.map((c) => (
+                        <tr key={c._id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 font-semibold text-white">{c.owner_id?.name || "Rohan Sharma"}</td>
+                          <td className="py-4 px-4 font-mono text-[#9A9A9A]">{c.vehicle_id?.make} {c.vehicle_id?.model}</td>
+                          <td className="py-4 px-4 text-white truncate max-w-[200px]">{c.title}</td>
+                          <td className="py-4 px-4">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                              c.priority === "High" || c.priority === "Urgent" ? "bg-red-500/10 text-red-400" : "bg-[#9A9A9A]/10 text-[#9A9A9A]"
+                            }`}>{c.priority}</span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                              c.status === "Pending" ? "bg-amber-500/10 text-amber-500 animate-pulse" : "bg-blue-500/10 text-blue-400"
+                            }`}>{c.status}</span>
+                          </td>
+                          <td className="py-4 px-4 text-[#9A9A9A]">{new Date(c.created_at || Date.now()).toLocaleDateString()}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: COMPLAINTS */}
+        {activeTab === "complaints" && (
           <div className="space-y-6 text-left">
             <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">Repairs Queue & Active Jobs</h2>
-              <p className="text-xs text-[#9A9A9A] mt-1">Accept tickets and log active mechanic workloads.</p>
+              <h2 className="text-2xl font-extrabold tracking-tight">Active Pending Inbound</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Accept or reject open vehicle complaints in the network.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {complaints.filter(c => c.status === "Pending").length === 0 ? (
+                <div className="col-span-2 p-12 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] text-center space-y-4 flex flex-col items-center">
+                  <FolderOpen size={48} className="text-[#9A9A9A]" />
+                  <h3 className="font-bold text-sm uppercase">Queue Empty</h3>
+                  <p className="text-xs text-[#9A9A9A] max-w-sm leading-relaxed">No new complaints have been registered recently. Check back later.</p>
+                </div>
+              ) : (
+                complaints.filter(c => c.status === "Pending").map((c) => (
+                  <div key={c._id} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] hover:border-[#FFD400] transition-all flex flex-col justify-between shadow-md">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-start text-[9px] font-bold uppercase">
+                        <span className="text-[#FFD400] flex items-center gap-1"><Car size={10} /> {c.vehicle_id?.make || "EV"} {c.vehicle_id?.model || "Tele"}</span>
+                        <span className={c.priority === "Urgent" || c.priority === "High" ? "text-red-400" : "text-[#9A9A9A]"}>{c.priority} Priority</span>
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-white uppercase">{c.title}</h3>
+                        <p className="text-xs text-[#9A9A9A] mt-1.5 leading-relaxed truncate">{c.description}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-xs font-mono text-[#9A9A9A] pt-2 border-t border-white/5">
+                        <div className="flex items-center gap-1.5">
+                          <User size={12} /> <span className="truncate">{c.owner_id?.name || "Rohan Sharma"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <MapPin size={12} /> <span className="truncate">{c.location || "Location TBD"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-6">
+                      <button 
+                        onClick={() => handleUpdateStatus(c._id, "Accepted")}
+                        className="flex-1 py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black text-xs font-bold rounded-[12px] uppercase tracking-wider transition-all"
+                      >
+                        Accept
+                      </button>
+                      <button 
+                        onClick={() => handleUpdateStatus(c._id, "Cancelled")}
+                        className="px-4 py-3 border border-[rgba(255,255,255,0.06)] text-xs font-semibold rounded-[12px] uppercase text-[#9A9A9A] hover:text-white"
+                      >
+                        Reject
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setActiveComplaint(c);
+                          setActiveTab("repairs");
+                        }}
+                        className="px-4 py-3 border border-[#FFD400]/40 text-xs font-bold text-[#FFD400] rounded-[12px] uppercase"
+                      >
+                        Details
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: REPAIR REQUESTS */}
+        {activeTab === "repairs" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">Active Workloads & Bay Logs</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Manage estimated costs, parts procurement, and technician notes.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              
               {/* List */}
               <div className="lg:col-span-4 space-y-4">
-                {complaints.length === 0 ? (
-                  <p className="text-[#9A9A9A] text-xs">No active repairs in grid.</p>
+                {complaints.filter(c => c.status !== "Pending").length === 0 ? (
+                  <p className="text-[#9A9A9A] text-xs">No active repair logs in bay.</p>
                 ) : (
-                  complaints.map(c => (
+                  complaints.filter(c => c.status !== "Pending").map(c => (
                     <button 
                       key={c._id}
                       onClick={() => {
@@ -497,10 +644,8 @@ export default function WorkshopDashboard() {
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2 text-[10px]">
-                        <span className={`px-2 py-0.5 rounded uppercase font-bold ${
-                          c.status === "Pending" ? "bg-amber-500/10 text-amber-500 animate-pulse" : "bg-blue-500/10 text-blue-400"
-                        }`}>{c.status}</span>
-                        <span className={`font-semibold uppercase ${c.priority === "High" ? "text-[#FF5959]" : "text-[#9A9A9A]"}`}>{c.priority} Priority</span>
+                        <span className="px-2 py-0.5 rounded uppercase font-bold bg-blue-500/10 text-blue-400">{c.status}</span>
+                        <span className={`font-semibold uppercase ${c.priority === "High" ? "text-red-400" : "text-[#9A9A9A]"}`}>{c.priority} Priority</span>
                       </div>
                       <h4 className="text-xs font-bold text-white truncate uppercase">{c.title}</h4>
                     </button>
@@ -508,7 +653,7 @@ export default function WorkshopDashboard() {
                 )}
               </div>
 
-              {/* Action Board */}
+              {/* Console */}
               <div className="lg:col-span-8">
                 {activeComplaint ? (
                   <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md">
@@ -517,267 +662,249 @@ export default function WorkshopDashboard() {
                         <h3 className="text-lg font-bold uppercase">{activeComplaint.title}</h3>
                         <p className="text-xs text-[#9A9A9A] mt-1 leading-relaxed">{activeComplaint.description}</p>
                       </div>
-                      
-                      {/* Customer chat trigger */}
                       <button 
-                        onClick={() => handleSelectCustomerChat(activeComplaint.owner_id)}
+                        onClick={() => handleSelectCustomerChat(activeComplaint.owner_id?._id || activeComplaint.owner_id)}
                         className="px-4 py-2 bg-transparent hover:bg-white/5 border border-[rgba(255,255,255,0.08)] rounded-[12px] text-xs font-semibold transition-colors"
                       >
                         Message Driver
                       </button>
                     </div>
 
-                    {/* AI Diagnostics details references */}
-                    {activeComplaint.ai_diagnostics && (
-                      <div className="p-4 bg-[#111111] rounded-[18px] border border-[rgba(255,255,255,0.04)] text-xs space-y-1">
-                        <h4 className="font-bold text-[#FFD400] flex items-center gap-2 mb-2 uppercase">
-                          <Sparkles size={14} /> AI Diagnostic Suggestion
-                        </h4>
-                        <p className="text-[#9A9A9A] leading-relaxed"><strong className="text-white">Detected Faults:</strong> {activeComplaint.ai_diagnostics.detected_faults?.join(", ") || "General Inspection"}</p>
-                        <p className="text-[#9A9A9A]"><strong className="text-white">Suggested Action:</strong> {activeComplaint.ai_diagnostics.recommended_action || "Standard checkup"}</p>
-                      </div>
-                    )}
-
-                    {/* Actions Form depending on status */}
                     <div className="space-y-4">
-                      <h4 className="text-[10px] uppercase tracking-wider text-[#9A9A9A] font-bold">Technician Control Console</h4>
-                      
-                      {activeComplaint.status === "Pending" ? (
-                        <div className="flex gap-4">
-                          <button 
-                            onClick={() => handleUpdateStatus("Accepted")}
-                            className="flex-1 py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black text-xs font-bold rounded-[12px] uppercase tracking-wider transition-all"
-                          >
-                            Accept Repair Job
-                          </button>
-                          <button 
-                            onClick={() => handleUpdateStatus("Cancelled")}
-                            className="px-6 py-3 border border-[rgba(255,255,255,0.06)] text-xs font-semibold rounded-[12px] uppercase tracking-wider text-[#9A9A9A] hover:text-white"
-                          >
-                            Reject
-                          </button>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Estimate Cost Override (₹)</label>
+                          <input type="number" value={repairCost} onChange={(e) => setRepairCost(parseFloat(e.target.value))} placeholder="e.g. 1500" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white" />
                         </div>
-                      ) : (
-                        <div className="space-y-4 text-left">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                              <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Estimate Cost Override ($)</label>
-                              <input type="number" value={repairCost} onChange={(e) => setRepairCost(parseFloat(e.target.value))} placeholder="e.g. 1500" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white" />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Duration Estimate</label>
-                              <input type="text" value={repairCompletion} onChange={(e) => setRepairCompletion(e.target.value)} placeholder="e.g. 2 Days" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white" />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Technician Notes & Progress Updates</label>
-                            <textarea value={techNotes} onChange={(e) => setTechNotes(e.target.value)} rows={3} placeholder="Provide status update on parts shipping, assembly..." className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2.5 text-xs focus:outline-none focus:border-[#FFD400] text-white leading-relaxed" />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Bay Photo URL</label>
-                            <input type="text" value={repairImage} onChange={(e) => setRepairImage(e.target.value)} placeholder="e.g. https://images.unsplash.com/bay-photo.jpg" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white" />
-                          </div>
-
-                          <div className="flex gap-4 pt-2">
-                            <button 
-                              onClick={() => handleUpdateStatus("In Progress")}
-                              className="flex-1 py-3 border border-[rgba(255,255,255,0.06)] text-xs font-semibold rounded-[12px] uppercase tracking-wider hover:bg-white/5 transition-colors"
-                            >
-                              Update Bay Logs
-                            </button>
-                            
-                            <button 
-                              onClick={() => {
-                                handleUpdateStatus("In Progress");
-                                setActiveTab("billing");
-                              }}
-                              className="px-6 py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black text-xs font-bold rounded-[12px] uppercase tracking-wider flex items-center gap-1.5 transition-all hover:scale-[1.02]"
-                            >
-                              Issue Invoice <ArrowRight size={14} />
-                            </button>
-                          </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Duration Estimate</label>
+                          <input type="text" value={repairCompletion} onChange={(e) => setRepairCompletion(e.target.value)} placeholder="e.g. 2 Days" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white" />
                         </div>
-                      )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Technician Notes & Progress Updates</label>
+                        <textarea value={techNotes} onChange={(e) => setTechNotes(e.target.value)} rows={3} placeholder="Provide status update on parts shipping, assembly..." className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2.5 text-xs focus:outline-none focus:border-[#FFD400] text-white leading-relaxed" />
+                      </div>
+
+                      <div className="flex gap-4 pt-2">
+                        <button 
+                          onClick={() => handleUpdateStatus(activeComplaint._id, "In Progress")}
+                          className="flex-1 py-3 border border-[rgba(255,255,255,0.06)] text-xs font-semibold rounded-[12px] uppercase tracking-wider hover:bg-white/5 transition-colors"
+                        >
+                          Update Bay Logs
+                        </button>
+                        <button 
+                          onClick={() => handleUpdateStatus(activeComplaint._id, "Completed")}
+                          className="px-6 py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black text-xs font-bold rounded-[12px] uppercase tracking-wider"
+                        >
+                          Mark Completed
+                        </button>
+                      </div>
                     </div>
-
                   </div>
                 ) : (
-                  <p className="text-[#9A9A9A] text-xs">Select repair ticket queue to load details.</p>
+                  <p className="text-[#9A9A9A] text-xs">Select active jobs in Left Queue tab to update details.</p>
                 )}
               </div>
-
             </div>
           </div>
         )}
 
-        {/* TAB: BILLING INVOICES */}
-        {activeTab === "billing" && (
+        {/* TAB: CUSTOMERS */}
+        {activeTab === "customers" && (
           <div className="space-y-6 text-left">
             <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">Generate Invoices</h2>
-              <p className="text-xs text-[#9A9A9A] mt-1">Issue itemized invoices for accepted repair logs.</p>
+              <h2 className="text-2xl font-extrabold tracking-tight">Active Client Directory</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Roster of registered vehicle owners linked with complaints.</p>
             </div>
 
-            {activeComplaint ? (
-              <form onSubmit={handleCreateInvoice} className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 max-w-2xl mx-auto shadow-md">
-                <div className="border-b border-[rgba(255,255,255,0.06)] pb-4 mb-4">
-                  <span className="text-[9px] uppercase tracking-wider text-[#9A9A9A] block">Ticket Context</span>
-                  <h3 className="text-base font-bold text-white uppercase">{activeComplaint.title}</h3>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs uppercase font-bold text-[#9A9A9A]">Line Items Coordinates</span>
-                    <button 
-                      type="button" 
-                      onClick={() => setInvoiceItems(prev => [...prev, { description: "", cost: 0 }])}
-                      className="px-3 py-1 border border-[rgba(255,255,255,0.08)] rounded-[12px] text-[10px] font-bold flex items-center gap-1 hover:bg-white/5"
-                    >
-                      <Plus size={10} /> Add Item
-                    </button>
-                  </div>
-
-                  {invoiceItems.map((item, index) => (
-                    <div key={index} className="flex gap-4">
-                      <input 
-                        type="text" 
-                        required
-                        value={item.description} 
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setInvoiceItems(prev => prev.map((it, i) => i === index ? { ...it, description: val } : it));
-                        }}
-                        placeholder="Description, e.g. Rear disc brake rotor" 
-                        className="flex-1 bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFD400]"
-                      />
-                      <input 
-                        type="number" 
-                        required
-                        value={item.cost || ""} 
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          setInvoiceItems(prev => prev.map((it, i) => i === index ? { ...it, cost: val } : it));
-                        }}
-                        placeholder="Cost" 
-                        className="w-24 bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFD400]"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Discount Apply ($)</label>
-                  <input type="number" value={discount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} placeholder="e.g. 50" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white" />
-                </div>
-
-                <button 
-                  type="submit" 
-                  disabled={invoiceLoading}
-                  className="w-full py-3.5 bg-[#FFD400] hover:bg-[#FFC300] text-black rounded-[12px] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                >
-                  {invoiceLoading ? "Compiling invoice..." : "Authorize & Dispatch Billing"} <CheckCircle2 size={14} />
-                </button>
-              </form>
-            ) : (
-              <p className="text-[#9A9A9A] text-xs text-center">Select active jobs in Queue tab to generate billings.</p>
-            )}
+            <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] shadow-md">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[#9A9A9A] uppercase tracking-wider text-[9px] font-bold">
+                      <th className="py-3 px-4">Customer Name</th>
+                      <th className="py-3 px-4">Registered Email</th>
+                      <th className="py-3 px-4">Linked Vehicles</th>
+                      <th className="py-3 px-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {complaints.map(c => c.owner_id).filter((v, i, self) => self.findIndex(t => t?._id === v?._id) === i).map((owner) => (
+                      <tr key={owner?._id || "1"} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-4 px-4 font-bold text-white uppercase">{owner?.name || "Rohan Sharma"}</td>
+                        <td className="py-4 px-4 font-mono text-[#9A9A9A]">{owner?.email || "rohan@gmail.com"}</td>
+                        <td className="py-4 px-4 font-semibold text-white">Tesla Model S, Nexon EV</td>
+                        <td className="py-4 px-4">
+                          <button 
+                            onClick={() => handleSelectCustomerChat(owner?._id || owner)}
+                            className="px-3 py-1.5 bg-[#FFD400] text-black text-[10px] font-bold rounded-lg uppercase tracking-wider"
+                          >
+                            Open Chat
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* TAB: MECHANICS */}
-        {activeTab === "mechanics" && (
+        {/* TAB: VEHICLES */}
+        {activeTab === "vehicles" && (
           <div className="space-y-6 text-left">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-extrabold tracking-tight">Mechanics Team</h2>
-                <p className="text-xs text-[#9A9A9A] mt-1">Manage active mechanic queues and duty statuses.</p>
-              </div>
-              <button 
-                onClick={() => setShowAddMech(!showAddMech)}
-                className="px-4 py-2.5 rounded-[12px] bg-[#FFD400] hover:bg-[#FFC300] text-black text-xs font-bold flex items-center gap-2 hover:scale-[1.02] transition-all"
-              >
-                <Plus size={14} /> Add Mechanic
-              </button>
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">Vehicles Under Repair</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Directory of vehicles currently assigned to active diagnostic loops.</p>
             </div>
 
-            {showAddMech && (
-              <form onSubmit={handleAddMechanic} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 max-w-lg shadow-md text-xs font-semibold">
-                <h3 className="font-bold text-sm uppercase tracking-wider text-white">Create Mechanic Profile</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Name</label>
-                    <input type="text" value={mechName} onChange={(e) => setMechName(e.target.value)} required placeholder="e.g. Diana Prince" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white font-normal" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Specialty</label>
-                    <input type="text" value={mechSpecialty} onChange={(e) => setMechSpecialty(e.target.value)} required placeholder="e.g. Brakes & Calipers" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white font-normal" />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Phone</label>
-                    <input type="text" value={mechPhone} onChange={(e) => setMechPhone(e.target.value)} required placeholder="+1444111222" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2 text-xs focus:outline-none focus:border-[#FFD400] text-white font-normal" />
-                  </div>
+            <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] shadow-md">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[#9A9A9A] uppercase tracking-wider text-[9px] font-bold">
+                      <th className="py-3 px-4">Vehicle Model</th>
+                      <th className="py-3 px-4">Plate Identifier</th>
+                      <th className="py-3 px-4">Fuel Core</th>
+                      <th className="py-3 px-4">Owner Ref</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {complaints.map(c => c.vehicle_id).filter((v, i, self) => self.findIndex(t => t?._id === v?._id) === i).map((veh) => (
+                      <tr key={veh?._id || "1"} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-4 px-4 font-bold text-white uppercase">{veh?.make || "Tata"} {veh?.model || "Nexon EV"}</td>
+                        <td className="py-4 px-4 font-mono text-[#FFD400]">{veh?.license_plate || "MH-12-NE-9999"}</td>
+                        <td className="py-4 px-4 text-[#9A9A9A]">{veh?.fuel_type || "Electric"}</td>
+                        <td className="py-4 px-4 text-white">Rohan Sharma</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: AI DIAGNOSTICS */}
+        {activeTab === "diagnostics" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">AI Diagnostics Analytics</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Examine AI classification distributions and recommendations.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] space-y-4 shadow-md">
+                <h3 className="font-bold text-xs uppercase text-[#FFD400] flex items-center gap-1"><Sparkles size={14} /> Diagnostic Confidence</h3>
+                <div className="h-4 bg-[#111111] rounded-full overflow-hidden relative">
+                  <div className="absolute inset-y-0 left-0 bg-[#FFD400]" style={{ width: "94%" }} />
                 </div>
-                <div className="flex justify-end gap-2 text-xs font-semibold">
-                  <button type="button" onClick={() => setShowAddMech(false)} className="px-4 py-2 border border-[rgba(255,255,255,0.06)] rounded-[12px] hover:bg-white/5">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-[#FFD400] hover:bg-[#FFC300] text-black rounded-[12px] font-bold">Register Mechanic</button>
+                <div className="flex justify-between text-[10px] text-[#9A9A9A]">
+                  <span>Average Confidence Score</span>
+                  <span className="font-bold text-white">94.2%</span>
                 </div>
-              </form>
-            )}
+              </div>
+
+              <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] space-y-4 shadow-md">
+                <h3 className="font-bold text-xs uppercase text-white">Top Diagnostic Category</h3>
+                <div className="text-2xl font-black text-white">EV MOTORS / DRIVETRAIN</div>
+                <p className="text-[#9A9A9A] text-xs leading-relaxed">Drivetrain bearing misalignment continues to rank as the highest diagnosed severity condition.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: ANALYTICS */}
+        {activeTab === "analytics" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">Business Analytics</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Revenue charts and repair cycle metrics.</p>
+            </div>
+
+            <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] space-y-4 shadow-md">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#9A9A9A]">Monthly Billing Progression</span>
+              <div className="h-40 bg-[#111111] rounded-xl flex items-end justify-between p-4 border border-white/5 font-mono text-[9px]">
+                <div className="flex flex-col items-center gap-2"><div className="w-6 bg-[#FFD400]/40 h-12 rounded" /><span>MAY</span></div>
+                <div className="flex flex-col items-center gap-2"><div className="w-6 bg-[#FFD400]/70 h-24 rounded" /><span>JUN</span></div>
+                <div className="flex flex-col items-center gap-2"><div className="w-6 bg-[#FFD400] h-32 rounded" /><span>JUL</span></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PROFILE */}
+        {activeTab === "profile" && (
+          <div className="space-y-6 text-left max-w-2xl mx-auto">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">Workshop Profile</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Manage public garage metadata and credentials.</p>
+            </div>
+
+            <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md text-xs font-semibold">
+              <div className="flex items-center gap-4 border-b border-white/5 pb-6">
+                <div className="w-16 h-16 rounded-full border border-[#FFD400] flex items-center justify-center bg-[#111111] relative text-xl font-black text-[#FFD400]">
+                  W
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white uppercase flex items-center gap-2">
+                    {workshop?.name} <ShieldCheck className="text-[#FFD400]" size={16} />
+                  </h3>
+                  <p className="text-[#9A9A9A] text-xs font-normal mt-0.5">{workshop?.address}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-[10px] text-[#9A9A9A] uppercase block">Phone Core</span>
+                  <span className="text-white mt-1 block font-mono">{workshop?.phone}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#9A9A9A] uppercase block">Status</span>
+                  <span className="text-[#28C76F] mt-1 block font-bold">VERIFIED GARAGE</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: SETTINGS (REVIEWS) */}
+        {activeTab === "settings" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">Garage Settings & Reviews</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Monitor garage settings and rating logs.</p>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {mechanics.map(m => (
-                <div key={m._id} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] hover:border-[#FFD400] transition-all text-left relative group shadow-md">
-                  <div className="absolute top-4 right-4 text-[#9A9A9A] hover:text-[#FF5959] cursor-pointer" onClick={() => handleDeleteMechanic(m._id)}>
-                    <Trash2 size={14} />
-                  </div>
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-[#7CFF7A] uppercase font-bold">{m.status}</span>
-                  <h4 className="text-base font-bold mt-3 uppercase tracking-wide text-white">{m.name}</h4>
-                  <p className="text-xs text-[#9A9A9A] mt-1">Specialty: {m.specialty}</p>
-                  <p className="text-xs text-[#9A9A9A] mt-1">Phone: {m.phone}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TAB: REVIEWS */}
-        {activeTab === "reviews" && (
-          <div className="space-y-6 text-left">
-            <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">Customer Reviews</h2>
-              <p className="text-xs text-[#9A9A9A] mt-1">Monitor overall driver feedback score averages.</p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
               {reviews.map(r => (
-                <div key={r._id} className="p-6 rounded-[18px] bg-[#151515] border border-[rgba(255,255,255,0.06)] text-xs shadow-md">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[#FFD400] font-bold">⭐ {r.rating} / 5.0 Rating</span>
-                    <span className="text-[#9A9A9A] text-[10px]">{new Date(r.created_at || new Date()).toLocaleDateString()}</span>
+                <div key={r._id} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] text-xs shadow-md space-y-3">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                    <span className="text-[#FFD400] font-bold">⭐ {r.rating} / 5.0</span>
+                    <span className="text-[#9A9A9A] text-[9px]">{new Date(r.created_at || new Date()).toLocaleDateString()}</span>
                   </div>
-                  <p className="text-white leading-relaxed">{r.comment}</p>
+                  <p className="text-[#9A9A9A] leading-relaxed">{r.comment}</p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* TAB: REAL-TIME CHAT */}
+        {/* TAB: CHAT */}
         {activeTab === "chat" && activeChatOwner && (
           <div className="space-y-6 text-left">
             <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">Chat Window: {activeChatOwner.name}</h2>
-              <p className="text-xs text-[#9A9A9A] mt-1">Direct live websocket channel with the vehicle owner.</p>
+              <h2 className="text-2xl font-extrabold tracking-tight">Channel: {activeChatOwner.name}</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Active customer communication room.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[500px]">
-              
-              {/* Messages */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[480px]">
               <div className="lg:col-span-8 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] overflow-hidden flex flex-col h-full shadow-md">
-                <div className="p-4 bg-[#111111] border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between text-xs text-[#9A9A9A]">
-                  <span>WebSocket Connection: {isConnected ? "Active" : "Offline"}</span>
+                <div className="p-4 bg-[#111111] border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between text-[10px] text-[#9A9A9A] font-semibold">
+                  <span>Websocket Channel Status: {isConnected ? "ONLINE" : "OFFLINE"}</span>
                   {ownerIsTyping && <span className="text-[#FFD400] animate-pulse">Client typing...</span>}
                 </div>
 
@@ -798,7 +925,6 @@ export default function WorkshopDashboard() {
                   ))}
                 </div>
 
-                {/* Form Input */}
                 <form 
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -822,31 +948,22 @@ export default function WorkshopDashboard() {
                 </form>
               </div>
 
-              {/* AI Auto suggestions replies */}
               <div className="lg:col-span-4 space-y-4">
-                <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] text-xs text-left shadow-md">
-                  <h3 className="font-bold text-[#FFD400] flex items-center gap-2 mb-3 border-b border-[rgba(255,255,255,0.06)] pb-2 uppercase">
-                    <Sparkles size={14} /> AI Smart Replies
+                <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] text-xs">
+                  <h3 className="font-bold text-[#FFD400] flex items-center gap-2 mb-3 border-b border-white/5 pb-2 uppercase">
+                    <Sparkles size={14} /> AI Smart Suggestions
                   </h3>
-                  
-                  {smartReplies.length > 0 ? (
-                    <div className="space-y-2">
-                      {smartReplies.map((reply, i) => (
-                        <button 
-                          key={i}
-                          onClick={() => handleSendChatMessage(reply)}
-                          className="w-full p-3 bg-[#111111] hover:bg-[#111111]/80 border border-[rgba(255,255,255,0.04)] hover:border-[#FFD400] text-[11px] text-left text-white rounded-[12px] transition-all font-semibold"
-                        >
-                          {reply}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[#9A9A9A] text-[10px]">No suggestion cues loaded. AI analyzes incoming messages context.</p>
-                  )}
+                  {smartReplies.map((reply, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => handleSendChatMessage(reply)}
+                      className="w-full p-3 mb-2 bg-[#111111] hover:bg-white/5 border border-white/5 hover:border-[#FFD400] text-left text-white rounded-xl transition-all"
+                    >
+                      {reply}
+                    </button>
+                  ))}
                 </div>
               </div>
-
             </div>
           </div>
         )}

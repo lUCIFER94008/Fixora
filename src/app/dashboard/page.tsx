@@ -7,12 +7,14 @@ export default async function DashboardRedirect() {
     redirect("/login");
   }
 
-  const role = (session.user as any).role || "owner";
+  const role = (session.user as any).role;
   if (role === "admin") {
     redirect("/admin/dashboard");
   } else if (role === "workshop") {
     redirect("/workshop/dashboard");
-  } else {
+  } else if (role === "owner") {
     redirect("/owner/dashboard");
+  } else {
+    redirect("/login");
   }
 }

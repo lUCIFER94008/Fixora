@@ -15,8 +15,13 @@ export async function GET(req: Request) {
     if (tokenUser.role === "owner") {
       list = await Complaint.find({ owner_id: tokenUser._id }).sort({ created_at: -1 });
     } else if (tokenUser.role === "workshop") {
-      // Find complaints assigned to this workshop owner's user id
-      list = await Complaint.find({ workshop_id: tokenUser._id }).sort({ created_at: -1 });
+      // Return complaints that are either Pending (available for acceptance) or already accepted by this workshop
+      list = await Complaint.find({
+        $or: [
+          { status: "Pending" },
+          { workshop_id: tokenUser._id }
+        ]
+      }).sort({ created_at: -1 });
     } else if (tokenUser.role === "admin") {
       list = await Complaint.find({}).sort({ created_at: -1 });
     }
@@ -36,7 +41,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: "Unauthorized" }, { status: 401 });
     }
 
-    const { vehicle_id, title, description, priority, workshop_id, voice_url, image_url } = await req.json();
+    const { vehicle_id, title, description, priority, category, location, images, workshop_id, voice_url, image_url } = await req.json();
 
     if (!vehicle_id || !title || !description) {
       return NextResponse.json({ detail: "Missing required fields" }, { status: 400 });
@@ -44,7 +49,7 @@ export async function POST(req: Request) {
 
     // AI Diagnostics Simulation matching description keywords
     const descLower = description.toLowerCase();
-    let category = "General";
+    let aiCategory = "General";
     let detected_faults = ["Unspecified Diagnostic Code"];
     let severity = "Medium";
     let recommended_action = "Schedule workshop inspection.";
@@ -53,7 +58,7 @@ export async function POST(req: Request) {
     let estimated_time = "1 day";
 
     if (descLower.includes("brake") || descLower.includes("squeal") || descLower.includes("rotor")) {
-      category = "Brakes";
+      aiCategory = "Brakes";
       detected_faults = ["Front Brake Rotor Warp", "Friction Pad Thinning"];
       severity = "Medium";
       recommended_action = "Replace brake rotor set and pad calipers.";
@@ -61,7 +66,7 @@ export async function POST(req: Request) {
       maxCost = 1600;
       estimated_time = "4 hours";
     } else if (descLower.includes("whine") || descLower.includes("noise") || descLower.includes("gear") || descLower.includes("drivetrain")) {
-      category = "Engine";
+      aiCategory = "Engine";
       detected_faults = ["Drive Bearing Wear", "Differential Gearing Misalignment"];
       severity = "High";
       recommended_action = "EV motor dismantling & drivetrain bearing replace.";
@@ -69,7 +74,7 @@ export async function POST(req: Request) {
       maxCost = 5000;
       estimated_time = "3 days";
     } else if (descLower.includes("battery") || descLower.includes("charge") || descLower.includes("range")) {
-      category = "Electrical";
+      aiCategory = "Electrical";
       detected_faults = ["Battery Cell Voltage Anomaly", "Thermal Sensor Failure"];
       severity = "Critical";
       recommended_action = "Perform battery module recalibration and swap cell group 3.";
@@ -79,7 +84,7 @@ export async function POST(req: Request) {
     }
 
     const ai_diagnostics = {
-      category,
+      category: aiCategory,
       detected_faults,
       severity,
       recommended_action,
@@ -93,6 +98,9 @@ export async function POST(req: Request) {
       vehicle_id,
       title,
       description,
+      category: category || "General",
+      location: location || "Unspecified Location",
+      images: images || [],
       priority: priority || "Normal",
       status: "Pending",
       workshop_id: workshop_id ? workshop_id : undefined,

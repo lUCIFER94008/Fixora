@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { 
@@ -23,7 +23,10 @@ import {
   ChevronRight,
   ChevronLeft,
   DollarSign,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle,
+  MapPin,
+  Briefcase
 } from "lucide-react";
 import api from "@/services/api";
 import { useChat } from "@/hooks/useChat";
@@ -32,7 +35,7 @@ export default function OwnerDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState("garage"); // garage, complaint, repairs, chat
+  const [activeTab, setActiveTab] = useState("garage"); // garage, complaints, history, diagnostics, invoices, workshops, profile
   
   // Data States
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -46,7 +49,7 @@ export default function OwnerDashboard() {
   const [showAddCar, setShowAddCar] = useState(false);
   const [carMake, setCarMake] = useState("");
   const [carModel, setCarModel] = useState("");
-  const [carYear, setCarYear] = useState(2023);
+  const [carYear, setCarYear] = useState(2025);
   const [carPlate, setCarPlate] = useState("");
   const [carMileage, setCarMileage] = useState(15000);
   const [carFuel, setCarFuel] = useState("Electric");
@@ -55,7 +58,10 @@ export default function OwnerDashboard() {
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [complaintTitle, setComplaintTitle] = useState("");
   const [complaintDesc, setComplaintDesc] = useState("");
+  const [complaintCategory, setComplaintCategory] = useState("Engine");
   const [complaintPriority, setComplaintPriority] = useState("Normal");
+  const [complaintLocation, setComplaintLocation] = useState("Pune, Maharashtra");
+  const [complaintImages, setComplaintImages] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState("");
   const [voiceUrl, setVoiceUrl] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -89,7 +95,6 @@ export default function OwnerDashboard() {
   const { isConnected, sendTyping, sendSeen } = useChat({
     userId: user?._id,
     onMessageReceived: (message) => {
-      // Check if message belongs to current chat context
       if (activeChatWorkshop && (message.sender_id === activeChatWorkshop.owner_id || message.sender_id === activeChatWorkshop._id)) {
         setChatMessages(prev => [...prev, message]);
         sendSeen(message.sender_id, message.complaint_id);
@@ -112,9 +117,8 @@ export default function OwnerDashboard() {
       setVehicles(response.data);
       if (response.data.length > 0) setSelectedVehicle(response.data[0]._id);
     } catch (err) {
-      // Fallback mocks
       setVehicles([
-        { _id: "v1", make: "Tesla", model: "Model S Plaid", year: 2023, license_plate: "FX-99-AI", mileage: 12500, fuel_type: "Electric" }
+        { _id: "v1", make: "Tesla", model: "Model S Plaid", year: 2025, license_plate: "MH-12-FX-9999", mileage: 12500, fuel_type: "Electric" }
       ]);
     }
   };
@@ -128,7 +132,6 @@ export default function OwnerDashboard() {
         fetchInvoiceForComplaint(response.data[0]._id);
       }
     } catch (err) {
-      // Mocks
       setComplaints([
         {
           _id: "c1",
@@ -136,6 +139,8 @@ export default function OwnerDashboard() {
           description: "Acceleration past 80km/h triggers rear unit noise.",
           status: "In Progress",
           priority: "High",
+          category: "Engine",
+          location: "Pune, Maharashtra",
           estimated_cost: 4200,
           estimated_completion: "3 Days",
           technician_notes: "Rear differential gears require adjustments.",
@@ -159,7 +164,8 @@ export default function OwnerDashboard() {
       if (response.data.length > 0) setSelectedWorkshop(response.data[0]._id);
     } catch (err) {
       setWorkshops([
-        { _id: "w1", name: "NEON HYPERGARAGE", address: "77 Cyberpunk Blvd", phone: "+1444444444", rating: 4.9, owner_id: "mock_workshop_owner_id" }
+        { _id: "w1", name: "NEON HYPERGARAGE", address: "77 Cyberpunk Blvd", phone: "+91144444444", rating: 4.9, owner_id: "mock_workshop_owner_id" },
+        { _id: "w2", name: "APEX EV LABS", address: "102 Industrial Sector", phone: "+91234567890", rating: 4.8, owner_id: "mock_workshop_2" }
       ]);
     }
   };
@@ -186,8 +192,10 @@ export default function OwnerDashboard() {
       });
       setVehicles(prev => [...prev, response.data]);
       setShowAddCar(false);
+      setCarMake("");
+      setCarModel("");
+      setCarPlate("");
     } catch {
-      // Simulated append
       const mockCar = { _id: Math.random().toString(), make: carMake, model: carModel, year: carYear, license_plate: carPlate, mileage: carMileage, fuel_type: carFuel };
       setVehicles(prev => [...prev, mockCar]);
       setShowAddCar(false);
@@ -197,8 +205,7 @@ export default function OwnerDashboard() {
   // Run instant AI helper preview as user types description
   useEffect(() => {
     if (complaintDesc.length > 10) {
-      const runAiPreview = async () => {
-        // Calculate mock diagnostics on client-side to wow user
+      const runAiPreview = () => {
         const isBrake = complaintDesc.toLowerCase().includes("brake");
         setAiPreview({
           category: isBrake ? "Brakes" : "Engine/General",
@@ -221,23 +228,27 @@ export default function OwnerDashboard() {
         vehicle_id: selectedVehicle,
         title: complaintTitle,
         description: complaintDesc,
+        category: complaintCategory,
+        location: complaintLocation,
+        images: complaintImages,
         priority: complaintPriority,
-        workshop_id: selectedWorkshop,
+        workshop_id: selectedWorkshop || undefined,
         voice_url: voiceUrl || undefined,
         image_url: imageUrl || undefined
       });
       
       setComplaints(prev => [response.data, ...prev]);
       setActiveComplaint(response.data);
-      alert("AI Analysis complete! Complaint submitted to targeted workshop queue.");
-      setActiveTab("repairs");
+      alert("AI Analysis complete! Complaint submitted successfully.");
+      setActiveTab("complaints");
     } catch {
-      // Mock insert on failure
       const mock = {
-        _id: "c_new",
+        _id: "c_" + Math.random().toString(),
         vehicle_id: selectedVehicle,
         title: complaintTitle,
         description: complaintDesc,
+        category: complaintCategory,
+        location: complaintLocation,
         status: "Pending",
         priority: complaintPriority,
         ai_diagnostics: aiPreview || { category: "General", severity: "Medium" },
@@ -245,7 +256,7 @@ export default function OwnerDashboard() {
       };
       setComplaints(prev => [mock, ...prev]);
       setActiveComplaint(mock);
-      setActiveTab("repairs");
+      setActiveTab("complaints");
     } finally {
       setSubmittingComplaint(false);
     }
@@ -270,12 +281,10 @@ export default function OwnerDashboard() {
   const handleSelectWorkshopChat = async (workshop: any) => {
     setActiveChatWorkshop(workshop);
     setActiveTab("chat");
-    // Fetch chat history
     try {
       const response = await api.get(`/api/chat/history/${workshop.owner_id || workshop._id}`);
       setChatMessages(response.data);
     } catch {
-      // Simulated chat history
       setChatMessages([
         { sender_id: "workshop_owner_id", content: `Welcome to ${workshop.name} service chat window. Send questions below.`, seen: true }
       ]);
@@ -297,7 +306,6 @@ export default function OwnerDashboard() {
       setChatMessages(prev => [...prev, response.data]);
       setTypedMessage("");
     } catch {
-      // Simulated message push
       const mockMsg = {
         _id: Math.random().toString(),
         sender_id: user._id,
@@ -331,12 +339,12 @@ export default function OwnerDashboard() {
   return (
     <div className="min-h-screen bg-[#080808] text-white flex flex-col md:flex-row overflow-hidden font-sans">
       
-      {/* Collapsible Sidebar Navigation */}
+      {/* Collapsible Sidebar */}
       <aside className={`bg-[#111111] border-r border-[rgba(255,255,255,0.06)] flex flex-col justify-between shrink-0 transition-all duration-300 ${
         sidebarCollapsed ? "w-full md:w-20" : "w-full md:w-64"
       }`}>
         <div>
-          {/* Logo & Collapse button */}
+          {/* Logo */}
           <div className="p-6 border-b border-[rgba(255,255,255,0.06)] flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Image 
@@ -344,6 +352,7 @@ export default function OwnerDashboard() {
                 alt="FIXORA Logo" 
                 width={25} 
                 height={25} 
+                className="rounded-full"
               />
               {!sidebarCollapsed && <span className="font-bold text-base text-white tracking-tight">FIXORA</span>}
             </div>
@@ -376,42 +385,28 @@ export default function OwnerDashboard() {
 
           {/* Nav links */}
           <nav className="px-4 py-2 space-y-1 text-xs font-semibold">
-            <div className="relative">
-              {activeTab === "garage" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
-              <button 
-                onClick={() => setActiveTab("garage")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
-                  activeTab === "garage" ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                } ${sidebarCollapsed ? "justify-center" : ""}`}
-              >
-                <Car size={14} />
-                {!sidebarCollapsed && <span>My Garage</span>}
-              </button>
-            </div>
-            <div className="relative">
-              {activeTab === "complaint" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
-              <button 
-                onClick={() => setActiveTab("complaint")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
-                  activeTab === "complaint" ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                } ${sidebarCollapsed ? "justify-center" : ""}`}
-              >
-                <Sparkles size={14} className="text-[#FFD400]" />
-                {!sidebarCollapsed && <span>AI Diagnosis</span>}
-              </button>
-            </div>
-            <div className="relative">
-              {activeTab === "repairs" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
-              <button 
-                onClick={() => setActiveTab("repairs")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
-                  activeTab === "repairs" ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                } ${sidebarCollapsed ? "justify-center" : ""}`}
-              >
-                <Activity size={14} />
-                {!sidebarCollapsed && <span>Repairs & Invoices</span>}
-              </button>
-            </div>
+            {[
+              { id: "garage", label: "My Vehicles", icon: <Car size={14} /> },
+              { id: "complaints", label: "Vehicle Complaints", icon: <AlertTriangle size={14} /> },
+              { id: "history", label: "Repair History", icon: <Activity size={14} /> },
+              { id: "diagnostics", label: "AI Diagnosis", icon: <Sparkles size={14} className="text-[#FFD400]" /> },
+              { id: "invoices", label: "Invoices", icon: <CreditCard size={14} /> },
+              { id: "workshops", label: "Nearby Workshops", icon: <Briefcase size={14} /> },
+              { id: "profile", label: "Profile", icon: <User size={14} /> }
+            ].map((tab) => (
+              <div key={tab.id} className="relative">
+                {activeTab === tab.id && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
+                <button 
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
+                    activeTab === tab.id ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
+                  } ${sidebarCollapsed ? "justify-center" : ""}`}
+                >
+                  {tab.icon}
+                  {!sidebarCollapsed && <span>{tab.label}</span>}
+                </button>
+              </div>
+            ))}
             {activeChatWorkshop && (
               <div className="relative">
                 {activeTab === "chat" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
@@ -446,7 +441,7 @@ export default function OwnerDashboard() {
       {/* Main Content Area */}
       <main className="flex-1 p-6 md:p-12 overflow-y-auto space-y-6 relative max-w-[1400px] mx-auto w-full">
         
-        {/* TAB: GARAGE */}
+        {/* TAB: MY VEHICLES */}
         {activeTab === "garage" && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -462,7 +457,7 @@ export default function OwnerDashboard() {
               </button>
             </div>
 
-            {/* Add Car Form Modal */}
+            {/* Add Car Form */}
             {showAddCar && (
               <form onSubmit={handleAddCar} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] text-left space-y-4 max-w-lg">
                 <h3 className="font-bold text-sm uppercase tracking-wider">Register New Vehicle</h3>
@@ -481,7 +476,7 @@ export default function OwnerDashboard() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">License Plate</label>
-                    <input type="text" value={carPlate} onChange={(e) => setCarPlate(e.target.value)} required placeholder="FX-88-AI" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2.5 text-xs focus:outline-none focus:border-[#FFD400] text-white" />
+                    <input type="text" value={carPlate} onChange={(e) => setCarPlate(e.target.value)} required placeholder="MH-12-FX-9999" className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[12px] px-4 py-2.5 text-xs focus:outline-none focus:border-[#FFD400] text-white" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-wider text-[#9A9A9A] block">Current Mileage (KM)</label>
@@ -512,14 +507,14 @@ export default function OwnerDashboard() {
                     {v.fuel_type}
                   </div>
                   <h3 className="text-lg font-bold text-white uppercase">{v.make} {v.model}</h3>
-                  <div className="grid grid-cols-2 gap-4 mt-6 text-xs">
+                  <div className="grid grid-cols-2 gap-4 mt-6 text-xs font-semibold">
                     <div>
                       <span className="text-[10px] text-[#9A9A9A] block uppercase tracking-wider">License</span>
                       <span className="font-semibold text-white">{v.license_plate}</span>
                     </div>
                     <div>
                       <span className="text-[10px] text-[#9A9A9A] block uppercase tracking-wider">Mileage</span>
-                      <span className="font-semibold text-white">{v.mileage.toLocaleString()} KM</span>
+                      <span className="font-semibold text-white">{v.mileage?.toLocaleString()} KM</span>
                     </div>
                     <div>
                       <span className="text-[10px] text-[#9A9A9A] block uppercase tracking-wider">Assembly Year</span>
@@ -527,20 +522,18 @@ export default function OwnerDashboard() {
                     </div>
                     <div>
                       <span className="text-[10px] text-[#9A9A9A] block uppercase tracking-wider">Status</span>
-                      <span className="text-[#7CFF7A] font-bold">Diagnostics OK</span>
+                      <span className="text-[#7CFF7A] font-bold">ACTIVE DEPLOYED</span>
                     </div>
                   </div>
-                  
-                  {/* Action */}
                   <div className="mt-6 flex justify-end">
                     <button 
                       onClick={() => {
                         setSelectedVehicle(v._id);
-                        setActiveTab("complaint");
+                        setActiveTab("complaints");
                       }}
                       className="px-4 py-2 text-xs font-semibold bg-transparent hover:bg-[#FFD400] hover:text-black hover:border-transparent rounded-[12px] border border-[rgba(255,255,255,0.08)] transition-all flex items-center gap-2"
                     >
-                      Diagnose Issue <ChevronRight size={14} />
+                      File Complaint <ChevronRight size={14} />
                     </button>
                   </div>
                 </div>
@@ -549,24 +542,20 @@ export default function OwnerDashboard() {
           </div>
         )}
 
-        {/* TAB: COMPLAINT WIZARD */}
-        {activeTab === "complaint" && (
+        {/* TAB: VEHICLE COMPLAINTS */}
+        {activeTab === "complaints" && (
           <div className="space-y-6 text-left">
             <div>
-              <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-3">
-                AI Diagnostics Core <Sparkles className="text-[#FFD400] animate-pulse" />
-              </h1>
-              <p className="text-xs text-[#9A9A9A] mt-1">Submit mechanical issues. AI analyzes telemetry immediately.</p>
+              <h1 className="text-3xl font-extrabold tracking-tight">Create & File Complaints</h1>
+              <p className="text-xs text-[#9A9A9A] mt-1">Submit mechanical diagnostic logs to the workshop network.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              
-              {/* Form Input Panel */}
-              <form onSubmit={handleSubmitComplaint} className="lg:col-span-8 p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6">
+              <form onSubmit={handleSubmitComplaint} className="lg:col-span-8 p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md text-xs font-semibold">
                 
-                {/* Select Vehicle */}
+                {/* Vehicle Selection */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">Target Fleet Vehicle</label>
+                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">Select Vehicle</label>
                   <select 
                     value={selectedVehicle}
                     onChange={(e) => setSelectedVehicle(e.target.value)}
@@ -578,70 +567,91 @@ export default function OwnerDashboard() {
                   </select>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Category Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">Category</label>
+                    <select 
+                      value={complaintCategory}
+                      onChange={(e) => setComplaintCategory(e.target.value)}
+                      className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-xs focus:outline-none focus:border-[#FFD400] text-white"
+                    >
+                      <option value="Engine">Engine & Drivetrain</option>
+                      <option value="Brakes">Brakes & Suspension</option>
+                      <option value="Electrical">Electrical & Batteries</option>
+                      <option value="Body">Bodywork & Trim</option>
+                    </select>
+                  </div>
+
+                  {/* Location Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">Current Location</label>
+                    <input 
+                      type="text"
+                      value={complaintLocation}
+                      onChange={(e) => setComplaintLocation(e.target.value)}
+                      required
+                      className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-xs focus:outline-none focus:border-[#FFD400] text-white"
+                    />
+                  </div>
+                </div>
+
                 {/* Complaint Title */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">Symptom Title</label>
+                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">Complaint Title</label>
                   <input 
                     type="text" 
                     value={complaintTitle}
                     onChange={(e) => setComplaintTitle(e.target.value)}
                     required
-                    placeholder="e.g. Rear disc brakes grinding loudly when cold" 
+                    placeholder="e.g. EV battery temperature warning triggers" 
                     className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-xs focus:outline-none focus:border-[#FFD400] text-white"
                   />
                 </div>
 
-                {/* Complaint description */}
+                {/* Description */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">Issue coordinates & description</label>
+                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">Issue Description</label>
                   <textarea 
                     value={complaintDesc}
                     onChange={(e) => setComplaintDesc(e.target.value)}
                     required
                     rows={4}
-                    placeholder="Describe exactly what triggers the error. Any smells? Vibrations? Speed markers?" 
+                    placeholder="Provide a brief description of the issue." 
                     className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-xs focus:outline-none focus:border-[#FFD400] text-white leading-relaxed"
                   />
                 </div>
 
-                {/* Media Attachments slots */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 bg-[#111111] rounded-[18px] border border-[rgba(255,255,255,0.04)] flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Volume2 size={16} className="text-[#FFD400]" />
-                      <span className="text-[10px] font-semibold text-[#9A9A9A] uppercase tracking-wider">Voice Complaint</span>
-                    </div>
-                    <button type="button" onClick={() => setVoiceUrl("mock_audio_note.wav")} className="px-3 py-1 bg-white/5 border border-white/10 hover:border-[#FFD400] text-[10px] font-bold rounded-lg font-mono">
-                      {voiceUrl ? "Recorded" : "Record"}
-                    </button>
-                  </div>
-                  
-                  <div className="p-4 bg-[#111111] rounded-[18px] border border-[rgba(255,255,255,0.04)] flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ImageIcon size={16} className="text-white" />
-                      <span className="text-[10px] font-semibold text-[#9A9A9A] uppercase tracking-wider">Bay Document / Photo</span>
-                    </div>
-                    <button type="button" onClick={() => setImageUrl("mock_issue_photo.jpg")} className="px-3 py-1 bg-white/5 border border-white/10 hover:border-[#FFD400] text-[10px] font-bold rounded-lg font-mono">
-                      {imageUrl ? "Attached" : "Attach"}
-                    </button>
-                  </div>
+                {/* Priority Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">Priority Status</label>
+                  <select 
+                    value={complaintPriority}
+                    onChange={(e) => setComplaintPriority(e.target.value)}
+                    className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-xs focus:outline-none focus:border-[#FFD400] text-white"
+                  >
+                    <option value="Low">Low Priority</option>
+                    <option value="Normal">Normal Priority</option>
+                    <option value="High">High Priority</option>
+                    <option value="Urgent">Urgent Priority</option>
+                  </select>
                 </div>
 
                 {/* Selected Workshop */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">Target Workshop Dispatch</label>
+                  <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">Target Workshop Dispatch (Optional)</label>
                   <select 
                     value={selectedWorkshop}
                     onChange={(e) => setSelectedWorkshop(e.target.value)}
                     className="w-full bg-[#111111] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-xs focus:outline-none focus:border-[#FFD400] text-white"
                   >
+                    <option value="">Broadcast to All Workshops</option>
                     {workshops.map(w => (
-                      <option key={w._id} value={w._id}>{w.name} - Rating {w.rating} ({w.address})</option>
+                      <option key={w._id} value={w._id}>{w.name} (Rating {w.rating})</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Submit button */}
                 <button 
                   type="submit" 
                   disabled={submittingComplaint}
@@ -651,13 +661,12 @@ export default function OwnerDashboard() {
                 </button>
               </form>
 
-              {/* AI Forecast card panel */}
+              {/* AI Forecast panel */}
               <div className="lg:col-span-4 space-y-6">
                 <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] relative overflow-hidden shadow-md">
                   <h3 className="font-bold text-xs uppercase tracking-wider flex items-center gap-2 text-[#FFD400] mb-4">
                     <Sparkles size={14} /> Neural Predictions
                   </h3>
-                  
                   {aiPreview ? (
                     <div className="space-y-4 text-xs font-mono">
                       <div className="p-3 bg-[#111111] rounded-xl border border-white/5">
@@ -675,31 +684,28 @@ export default function OwnerDashboard() {
                     </div>
                   ) : (
                     <p className="text-[#9A9A9A] text-xs leading-relaxed">
-                      Provide a description coordinates above. AI diagnostic parser will predict the system failure category.
+                      Provide a description coordinates. AI diagnostic parser will predict the system failure category.
                     </p>
                   )}
                 </div>
               </div>
-
             </div>
           </div>
         )}
 
-        {/* TAB: REPAIRS TIMELINE & BILLING */}
-        {activeTab === "repairs" && (
+        {/* TAB: REPAIR HISTORY & TRACKER */}
+        {activeTab === "history" && (
           <div className="space-y-6 text-left">
             <div>
-              <h1 className="text-3xl font-extrabold tracking-tight">Active Repair Orders</h1>
-              <p className="text-xs text-[#9A9A9A] mt-1">Check current diagnostic states and pay repair invoices.</p>
+              <h1 className="text-3xl font-extrabold tracking-tight">Active Repair Progression</h1>
+              <p className="text-xs text-[#9A9A9A] mt-1">Track mechanical repair states in real-time.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              
               {/* Complaints List */}
               <div className="lg:col-span-4 space-y-4">
-                <span className="text-[10px] uppercase font-semibold tracking-wider text-[#9A9A9A] block mb-2">Complaint Queue</span>
                 {complaints.length === 0 ? (
-                  <p className="text-[#9A9A9A] text-xs">No complaints registered.</p>
+                  <p className="text-[#9A9A9A] text-xs">No active repair orders found.</p>
                 ) : (
                   complaints.map(c => (
                     <button 
@@ -727,19 +733,15 @@ export default function OwnerDashboard() {
                 )}
               </div>
 
-              {/* Detail view and Timeline */}
-              <div className="lg:col-span-8 space-y-6">
+              {/* Status details */}
+              <div className="lg:col-span-8">
                 {activeComplaint ? (
                   <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md">
-                    
-                    {/* Header */}
                     <div className="flex justify-between items-start border-b border-[rgba(255,255,255,0.06)] pb-4">
                       <div>
                         <h2 className="text-lg font-bold uppercase">{activeComplaint.title}</h2>
                         <p className="text-xs text-[#9A9A9A] mt-1 leading-relaxed">{activeComplaint.description}</p>
                       </div>
-                      
-                      {/* Launch Chat for this workshop */}
                       <button 
                         onClick={() => {
                           const wsObj = workshops.find(w => w._id === activeComplaint.workshop_id || w.owner_id === activeComplaint.workshop_id);
@@ -754,19 +756,19 @@ export default function OwnerDashboard() {
 
                     {/* Progress timeline */}
                     <div className="space-y-4">
-                      <h3 className="text-[10px] uppercase tracking-wider text-[#9A9A9A] font-bold">Repair Progression Path</h3>
+                      <h3 className="text-[10px] uppercase tracking-wider text-[#9A9A9A] font-bold">Repair Status Tracker</h3>
                       
-                      <div className="grid grid-cols-4 gap-2 relative z-10">
-                        {/* Connecting Line */}
+                      <div className="grid grid-cols-5 gap-2 relative z-10">
                         <div className="absolute top-4 inset-x-8 h-0.5 bg-[#111111] -z-10" />
                         
                         {[
-                          { step: "Pending", label: "Registered" },
+                          { step: "Pending", label: "Pending" },
                           { step: "Accepted", label: "Accepted" },
-                          { step: "In Progress", label: "Active Bay" },
-                          { step: "Completed", label: "Finished" }
+                          { step: "In Progress", label: "In Progress" },
+                          { step: "Completed", label: "Completed" },
+                          { step: "Cancelled", label: "Cancelled" }
                         ].map((node, index) => {
-                          const statuses = ["Pending", "Accepted", "In Progress", "Completed"];
+                          const statuses = ["Pending", "Accepted", "In Progress", "Completed", "Cancelled"];
                           const activeIndex = statuses.indexOf(activeComplaint.status);
                           const isDone = statuses.indexOf(node.step) <= activeIndex;
                           
@@ -785,79 +787,131 @@ export default function OwnerDashboard() {
                         })}
                       </div>
                     </div>
-
-                    {/* Tech log details */}
-                    {(activeComplaint.technician_notes || activeComplaint.estimated_cost) && (
-                      <div className="bg-[#111111] p-4 rounded-[18px] border border-[rgba(255,255,255,0.04)] grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <span className="text-[9px] text-[#9A9A9A] uppercase block">Technician Log</span>
-                          <p className="text-white mt-1 font-semibold">{activeComplaint.technician_notes || "Diagnostics in progress..."}</p>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-[#9A9A9A] uppercase block">Estimates Matrix</span>
-                          <p className="text-[#FFD400] mt-1 font-bold">
-                            {activeComplaint.estimated_cost ? `₹${activeComplaint.estimated_cost.toLocaleString()} Cost` : "TBD"} / {activeComplaint.estimated_completion || "TBD"} Duration
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Repair photos logs */}
-                    {activeComplaint.repair_images && activeComplaint.repair_images.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="text-[9px] uppercase text-[#9A9A9A] font-bold block">Repair Bay Feed Images</span>
-                        <div className="flex gap-4">
-                          {activeComplaint.repair_images.map((img: string, i: number) => (
-                            <div key={i} className="relative w-32 h-20 rounded-[12px] overflow-hidden border border-white/5 bg-[#111111]">
-                              <Image src={img} alt="Bay Feed" fill className="object-cover" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* INVOICE SECTION */}
-                    {invoice && (
-                      <div className="border-t border-[rgba(255,255,255,0.06)] pt-6 mt-4 space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs uppercase font-bold text-[#9A9A9A]">Billing Invoices Details</span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
-                            invoice.status === "Paid" ? "bg-emerald-500/10 text-[#7CFF7A]" : "bg-red-500/10 text-[#FF5959]"
-                          }`}>{invoice.status}</span>
-                        </div>
-                        
-                        <div className="p-4 bg-[#111111] rounded-[18px] border border-[rgba(255,255,255,0.04)] space-y-2 text-xs">
-                          {invoice.items.map((item: any, i: number) => (
-                            <div key={i} className="flex justify-between">
-                              <span className="text-[#9A9A9A]">{item.description}</span>
-                              <span className="font-semibold text-white">₹{item.cost.toLocaleString()}</span>
-                            </div>
-                          ))}
-                          <hr className="border-white/5 my-2" />
-                          <div className="flex justify-between text-sm font-bold">
-                            <span>TOTAL COST</span>
-                            <span className="text-[#FFD400]">₹{invoice.total.toLocaleString()}</span>
-                          </div>
-                        </div>
-
-                        {invoice.status === "Unpaid" && (
-                          <button 
-                            onClick={handlePayInvoice}
-                            disabled={paymentLoading}
-                            className="w-full py-3.5 bg-[#FFD400] hover:bg-[#FFC300] text-black hover:scale-[1.02] rounded-[16px] text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 transition-all"
-                          >
-                            <CreditCard size={14} /> {paymentLoading ? "Processing payment..." : "Execute Checkout"}
-                          </button>
-                        )}
-                      </div>
-                    )}
-
                   </div>
                 ) : (
-                  <p className="text-[#9A9A9A] text-xs">Select repair coordinates to view timeline.</p>
+                  <p className="text-[#9A9A9A] text-xs">Select repair order logs to view tracker.</p>
                 )}
               </div>
+            </div>
+          </div>
+        )}
 
+        {/* TAB: AI DIAGNOSIS */}
+        {activeTab === "diagnostics" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight flex items-center gap-2">AI Diagnostics Center <Sparkles className="text-[#FFD400] animate-pulse" /></h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Review the historical neural predictions computed by the AI scanner core.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {complaints.map((c) => (
+                <div key={c._id} className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] space-y-4 shadow-md">
+                  <h3 className="font-bold text-sm uppercase text-[#FFD400] flex items-center gap-1.5"><Sparkles size={14} /> Telemetry Analysis</h3>
+                  <div className="text-xs space-y-2 font-mono">
+                    <div><span className="text-[9px] text-[#9A9A9A] block uppercase">Vehicle Ref</span><span className="text-white font-bold">{c.vehicle_id?.make || "EV"} {c.vehicle_id?.model}</span></div>
+                    <div><span className="text-[9px] text-[#9A9A9A] block uppercase">Telemetry Status</span><span className="text-white">{c.title}</span></div>
+                    <div><span className="text-[9px] text-[#9A9A9A] block uppercase font-bold text-[#FF5959]">Severity Level</span><span className="text-[#FF5959] font-bold">{c.ai_diagnostics?.severity || "MEDIUM"}</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: INVOICES */}
+        {activeTab === "invoices" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">Settlements & Invoices</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Pay outstanding repair invoices using Fixora Checkout.</p>
+            </div>
+
+            {invoice ? (
+              <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] max-w-xl mx-auto shadow-md space-y-6">
+                <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                  <span className="text-xs uppercase font-bold text-[#9A9A9A]">Invoice Details</span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
+                    invoice.status === "Paid" ? "bg-emerald-500/10 text-[#7CFF7A]" : "bg-red-500/10 text-[#FF5959]"
+                  }`}>{invoice.status}</span>
+                </div>
+                
+                <div className="space-y-2 text-xs font-mono">
+                  {invoice.items.map((item: any, i: number) => (
+                    <div key={i} className="flex justify-between">
+                      <span className="text-[#9A9A9A]">{item.description}</span>
+                      <span className="font-semibold text-white">₹{item.cost.toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <hr className="border-white/5 my-2" />
+                  <div className="flex justify-between text-sm font-bold">
+                    <span>TOTAL COST</span>
+                    <span className="text-[#FFD400]">₹{invoice.total.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {invoice.status === "Unpaid" && (
+                  <button 
+                    onClick={handlePayInvoice}
+                    disabled={paymentLoading}
+                    className="w-full py-3.5 bg-[#FFD400] hover:bg-[#FFC300] text-black hover:scale-[1.02] rounded-[16px] text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 transition-all"
+                  >
+                    <CreditCard size={14} /> {paymentLoading ? "Processing payment..." : "Execute Checkout"}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="text-[#9A9A9A] text-xs text-center">No outstanding unpaid invoices found.</p>
+            )}
+          </div>
+        )}
+
+        {/* TAB: NEARBY WORKSHOPS */}
+        {activeTab === "workshops" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">Nearby Partner Garages</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Verified partner locations in the network grid.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {workshops.map((w) => (
+                <div key={w._id} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] hover:border-[#FFD400] transition-all flex flex-col justify-between shadow-md">
+                  <div>
+                    <h3 className="text-lg font-bold text-white uppercase flex items-center gap-2">{w.name}</h3>
+                    <p className="text-xs text-[#9A9A9A] mt-2">{w.address}</p>
+                    <div className="text-xs text-[#FFD400] font-bold mt-4">⭐ {w.rating} / 5.0 Rating</div>
+                  </div>
+                  <button 
+                    onClick={() => handleSelectWorkshopChat(w)}
+                    className="mt-6 py-3 border border-white/5 hover:border-[#FFD400] hover:bg-[#FFD400] hover:text-black transition-all rounded-[12px] text-xs font-bold uppercase"
+                  >
+                    Discuss Issue
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PROFILE */}
+        {activeTab === "profile" && (
+          <div className="space-y-6 text-left max-w-lg mx-auto">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">My Profile</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Manage private credentials and settings.</p>
+            </div>
+
+            <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md text-xs font-semibold">
+              <div className="flex items-center gap-4 border-b border-white/5 pb-6">
+                <div className="w-16 h-16 rounded-full border border-[#FFD400] flex items-center justify-center bg-[#111111] relative text-xl font-black text-[#FFD400]">
+                  O
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white uppercase">{user?.name}</h3>
+                  <p className="text-[#9A9A9A] text-xs font-normal mt-0.5">{user?.email}</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -866,19 +920,13 @@ export default function OwnerDashboard() {
         {activeTab === "chat" && activeChatWorkshop && (
           <div className="space-y-6 text-left">
             <div>
-              <h1 className="text-3xl font-extrabold tracking-tight">
-                Channel: {activeChatWorkshop.name}
-              </h1>
+              <h1 className="text-3xl font-extrabold tracking-tight">Channel: {activeChatWorkshop.name}</h1>
               <p className="text-xs text-[#9A9A9A] mt-1">Discuss repairs in real-time. Typing indicator enabled.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[500px]">
-              
-              {/* Messages display */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[480px]">
               <div className="lg:col-span-8 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] overflow-hidden flex flex-col h-full shadow-md">
-                
-                {/* Chat header */}
-                <div className="p-4 bg-[#111111] border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between text-xs text-[#9A9A9A]">
+                <div className="p-4 bg-[#111111] border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between text-[10px] text-[#9A9A9A] font-bold">
                   <span>Channel Status: {isConnected ? "Live Sync" : "Sync Offline"}</span>
                   {workshopIsTyping && <span className="text-[#FFD400] animate-pulse">Technician is typing...</span>}
                 </div>
@@ -900,7 +948,6 @@ export default function OwnerDashboard() {
                   ))}
                 </div>
 
-                {/* Form Input */}
                 <form onSubmit={handleSendChatMessage} className="p-4 bg-[#111111] border-t border-[rgba(255,255,255,0.04)] flex gap-2">
                   <input 
                     type="text" 
@@ -912,17 +959,12 @@ export default function OwnerDashboard() {
                     placeholder="Enter mechanical inquiries..." 
                     className="flex-1 bg-[#080808] border border-[#2A2A2A] rounded-[12px] px-4 py-3 text-xs text-white focus:outline-none focus:border-[#FFD400]"
                   />
-                  <button 
-                    type="submit" 
-                    aria-label="Send message"
-                    className="p-3 bg-[#FFD400] text-black hover:bg-[#FFC300] rounded-[12px] transition-colors"
-                  >
+                  <button type="submit" aria-label="Send message" className="p-3 bg-[#FFD400] text-black hover:bg-[#FFC300] rounded-[12px] transition-colors">
                     <Send size={14} />
                   </button>
                 </form>
               </div>
 
-              {/* Diagnostics Context references */}
               <div className="lg:col-span-4 space-y-4">
                 <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] text-xs">
                   <h3 className="font-bold text-white uppercase block mb-3 border-b border-white/5 pb-2">Active Complaint Context</h3>
@@ -936,19 +978,12 @@ export default function OwnerDashboard() {
                         <span className="text-[9px] text-[#9A9A9A] block uppercase">Telemetry Status</span>
                         <span className="font-bold text-[#FFD400] uppercase">{activeComplaint.status}</span>
                       </div>
-                      <div>
-                        <span className="text-[9px] text-[#9A9A9A] block uppercase">AI Severity</span>
-                        <span className="font-bold text-[#FF5959] uppercase">
-                          {activeComplaint.ai_diagnostics?.severity || "MEDIUM"}
-                        </span>
-                      </div>
                     </div>
                   ) : (
                     <p className="text-[#9A9A9A] text-[10px]">No active complaints references.</p>
                   )}
                 </div>
               </div>
-
             </div>
           </div>
         )}

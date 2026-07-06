@@ -183,24 +183,29 @@ export default function Verify() {
   const getBannerInfo = () => {
     if (!pendingData) return null;
     
+    // Case 2: Email + SMS
     if (smsSent && emailSent) {
       return {
-        message: "✅ Verification code sent to your phone and email.",
+        message: "Verification code sent to your email and mobile number.",
         type: "success"
       };
-    } else if (!smsSent && emailSent) {
+    }
+    // Case 1: Only Email OTP sent
+    else if (!smsSent && emailSent) {
+      // Handled directly inside header to avoid redundant warning banner display
+      return null;
+    }
+    // Case 3: Only SMS
+    else if (smsSent && !emailSent) {
       return {
-        message: "⚠ Phone number is not verified in the Twilio Trial account. Verification code has been sent to your email.",
-        type: "warning"
+        message: "Verification code sent to your mobile number.",
+        type: "success"
       };
-    } else if (smsSent && !emailSent) {
+    }
+    // Case 4: Both failed
+    else {
       return {
-        message: "⚠ Email delivery failed. Verification code has been sent to your phone.",
-        type: "warning"
-      };
-    } else {
-      return {
-        message: "❌ Unable to send verification code. Please try again later.",
+        message: "Unable to send verification code.",
         type: "error"
       };
     }
@@ -231,6 +236,8 @@ export default function Verify() {
     );
   }
 
+  const isOnlyEmail = !smsSent && emailSent;
+
   return (
     <div className="relative min-h-screen bg-transparent flex items-center justify-center p-6 md:p-12 text-white overflow-hidden font-sans">
       
@@ -250,30 +257,42 @@ export default function Verify() {
               />
               <span className="font-bold text-xl tracking-wider text-white">FIXORA</span>
             </Link>
-            <div className="pt-2">
-              <h2 className="text-xl font-bold uppercase tracking-wide">
-                {!smsSent ? "Email Verification" : "Verify Your Account"}
-              </h2>
-              <p className="text-[#9A9A9A] text-xs mt-1">
-                {!smsSent ? "Enter OTP sent to your registered email." : "Enter OTP credentials dispatched to your coordinates."}
-              </p>
-            </div>
+            
+            {isOnlyEmail ? (
+              <div className="pt-2 text-center w-full">
+                <h2 className="text-xl font-bold uppercase tracking-wide text-[#FFD400]">
+                  Verification Code Sent
+                </h2>
+                <div className="text-xs mt-4 leading-relaxed font-sans text-white">
+                  We have sent a 6-digit verification code to
+                  <div className="font-bold text-[#FFD400] text-sm my-1 font-mono">{pendingData.email}</div>
+                  Please check your inbox and enter the code below.
+                </div>
+              </div>
+            ) : (
+              <div className="pt-2 w-full text-center">
+                <h2 className="text-xl font-bold uppercase tracking-wide">
+                  Verify Your Account
+                </h2>
+                <p className="text-[#9A9A9A] text-xs mt-1">
+                  Enter OTP credentials dispatched to your coordinates.
+                </p>
+              </div>
+            )}
           </div>
 
           {banner && (
-            <div className={`p-3 rounded-[12px] text-xs flex items-start gap-2 font-sans ${
+            <div className={`p-3 rounded-[12px] text-xs flex items-center justify-center font-sans text-center ${
               banner.type === "success" 
                 ? "bg-[#28C76F]/10 border border-[#28C76F]/20 text-[#28C76F]" 
-                : banner.type === "warning" 
-                  ? "bg-[#FF9F43]/10 border border-[#FF9F43]/20 text-[#FF9F43]"
-                  : "bg-[#EA5455]/10 border border-[#EA5455]/20 text-[#EA5455]"
+                : "bg-[#EA5455]/10 border border-[#EA5455]/20 text-[#EA5455]"
             }`}>
-              <div className="leading-relaxed">{banner.message}</div>
+              <div className="leading-relaxed font-semibold">{banner.message}</div>
             </div>
           )}
 
           {error && (
-            <div className="p-3 rounded-[12px] bg-[#FF5959]/10 border border-[#FF5959]/20 text-[#FF5959] text-xs flex items-center gap-2 font-mono">
+            <div className="p-3 rounded-[12px] bg-[#FF5959]/10 border border-[#FF5959]/20 text-[#FF5959] text-xs flex items-center gap-2 font-mono justify-center">
               <ShieldAlert size={14} /> {error}
             </div>
           )}
@@ -313,7 +332,7 @@ export default function Verify() {
             {/* SMS OTP input */}
             {smsSent && (
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">SMS OTP Code</label>
+                <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">SMS OTP Code</label>
                 <input 
                   type="text" 
                   maxLength={6}
@@ -329,7 +348,7 @@ export default function Verify() {
             {/* Email OTP input */}
             {emailSent && (
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block">Email OTP Code</label>
+                <label className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A] block font-bold">Email OTP Code</label>
                 <input 
                   type="text" 
                   maxLength={6}
@@ -376,7 +395,7 @@ export default function Verify() {
                 href="/register" 
                 className="text-[10px] font-semibold text-[#9A9A9A] hover:text-white uppercase hover:underline"
               >
-                Back to Registration Settings
+                Back to Registration
               </Link>
             </div>
 

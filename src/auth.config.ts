@@ -10,6 +10,20 @@ export const authConfig = {
     strategy: "jwt",
   },
   callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = (user as any).role;
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as any).role = token.role;
+        (session.user as any).id = token.id;
+      }
+      return session;
+    },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const pathname = nextUrl.pathname;
@@ -21,7 +35,8 @@ export const authConfig = {
       if (isDashboardRoute) {
         if (!isLoggedIn) return false; // Redirect to login page
 
-        const userRole = (auth.user as any)?.role || "owner";
+        const userRole = (auth.user as any)?.role;
+        if (!userRole) return false;
 
         // Route checking and auto-redirection based on user role
         if (userRole === "admin" && !pathname.startsWith("/admin")) {

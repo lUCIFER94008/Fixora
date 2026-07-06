@@ -22,7 +22,12 @@ export async function PUT(
       return NextResponse.json({ detail: "Complaint not found" }, { status: 404 });
     }
 
-    if (status) comp.status = status;
+    if (status) {
+      comp.status = status;
+      if (status === "Accepted" && tokenUser.role === "workshop") {
+        comp.workshop_id = tokenUser._id;
+      }
+    }
     if (technician_notes !== undefined) comp.technician_notes = technician_notes;
     if (estimated_cost !== undefined) comp.estimated_cost = estimated_cost;
     if (estimated_completion !== undefined) comp.estimated_completion = estimated_completion;

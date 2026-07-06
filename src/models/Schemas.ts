@@ -130,6 +130,9 @@ export interface IComplaint {
   vehicle_id: mongoose.Types.ObjectId;
   title: string;
   description: string;
+  category?: string;
+  location?: string;
+  images?: string[];
   voice_url?: string;
   image_url?: string;
   video_url?: string;
@@ -151,6 +154,9 @@ const ComplaintSchema = new Schema<IComplaint>({
   vehicle_id: { type: Schema.Types.ObjectId, ref: "Vehicle", required: true, index: true },
   title: { type: String, required: true },
   description: { type: String, required: true },
+  category: { type: String },
+  location: { type: String },
+  images: [{ type: String }],
   voice_url: { type: String },
   image_url: { type: String },
   video_url: { type: String },
