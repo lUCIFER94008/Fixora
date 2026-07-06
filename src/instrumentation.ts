@@ -8,7 +8,10 @@ export function register() {
       "TWILIO_VERIFY_SERVICE_SID",
       "EMAIL_SERVER_USER",
       "EMAIL_SERVER_PASSWORD",
-      "EMAIL_FROM"
+      "EMAIL_FROM",
+      "SMTP_HOST",
+      "SMTP_PORT",
+      "SMTP_SECURE"
     ];
 
     const missing = requiredEnv.filter(name => !process.env[name]);
@@ -17,6 +20,12 @@ export function register() {
       missing.forEach(name => {
         console.error(`\x1b[33m  - Missing ${name}\x1b[0m`);
       });
+
+      // Avoid crashing Next.js production build compiler on Vercel/localhost
+      const isBuild = process.env.NEXT_PHASE === "phase-production-build" || (process.env.NODE_ENV === "production" && !process.env.PORT);
+      if (!isBuild) {
+        throw new Error(`[FIXORA BOOTSTRAP ERROR] Missing required environment variables: ${missing.join(", ")}`);
+      }
     } else {
       console.log("\x1b[32m[FIXORA BOOTSTRAP] All required environment variables are set.\x1b[0m");
     }

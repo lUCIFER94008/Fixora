@@ -24,10 +24,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: "Email is already registered" }, { status: 400 });
     }
 
-    // Generate 6 digit code
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const emailOTP = bcrypt.hashSync(otp, 10);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    // Generate 6 digit code safely
+    let otp = "";
+    let emailOTP = "";
+    let expiresAt: Date;
+    try {
+      otp = Math.floor(100000 + Math.random() * 900000).toString();
+      emailOTP = bcrypt.hashSync(otp, 10);
+      expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    } catch (hashErr) {
+      console.error("[OTP GENERATION ERROR] Hashing or code generation failed:", hashErr);
+      return NextResponse.json({ detail: "OTP generation failed" }, { status: 500 });
+    }
 
     // Upsert into otp_verifications collection
     await OtpVerification.findOneAndUpdate(
@@ -56,18 +64,17 @@ export async function POST(req: Request) {
       // Clean up verification document if SMTP failed
       await OtpVerification.deleteOne({ email });
 
-      const specificErrors = [
+      const allowedErrors = [
+        "Missing EMAIL_SERVER_USER",
+        "Missing EMAIL_SERVER_PASSWORD",
         "SMTP authentication failed",
-        "Invalid Gmail App Password",
-        "EMAIL_SERVER_USER is missing",
-        "EMAIL_SERVER_PASSWORD is missing",
-        "Unable to connect to SMTP server"
+        "Email could not be sent"
       ];
       
-      if (specificErrors.includes(smtpErr.message)) {
+      if (allowedErrors.includes(smtpErr.message)) {
         return NextResponse.json({ detail: smtpErr.message }, { status: 500 });
       }
-      return NextResponse.json({ detail: smtpErr.message || "Failed to dispatch email verification message" }, { status: 500 });
+      return NextResponse.json({ detail: smtpErr.message || "Email could not be sent" }, { status: 500 });
     }
 
     return NextResponse.json({

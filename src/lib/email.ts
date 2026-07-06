@@ -1,27 +1,46 @@
 import nodemailer from "nodemailer";
 
+let transporter: nodemailer.Transporter | null = null;
+
 function getTransporter(): nodemailer.Transporter {
+  if (transporter) return transporter;
+
   const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
   const smtpPort = parseInt(process.env.SMTP_PORT || "587");
-  const smtpUser = process.env.EMAIL_SERVER_USER || process.env.SMTP_USER;
-  const smtpPass = process.env.EMAIL_SERVER_PASSWORD || process.env.SMTP_PASS;
+  const smtpUser = process.env.EMAIL_SERVER_USER;
+  const smtpPass = process.env.EMAIL_SERVER_PASSWORD;
+  const secure = process.env.SMTP_SECURE === "true" || smtpPort === 465;
+
+  // Debugging log: Whether EMAIL_SERVER_USER exists
+  console.log(`[DEBUG] EMAIL_SERVER_USER exists: ${!!smtpUser}`);
 
   if (!smtpUser) {
-    throw new Error("EMAIL_SERVER_USER is missing");
+    throw new Error("Missing EMAIL_SERVER_USER");
   }
   if (!smtpPass) {
-    throw new Error("EMAIL_SERVER_PASSWORD is missing");
+    throw new Error("Missing EMAIL_SERVER_PASSWORD");
   }
 
-  return nodemailer.createTransport({
+  transporter = nodemailer.createTransport({
     host: smtpHost,
     port: smtpPort,
-    secure: smtpPort === 465,
+    secure: secure,
     auth: {
       user: smtpUser,
       pass: smtpPass,
     },
   });
+
+  // Debugging log: Whether SMTP connection succeeds
+  transporter.verify((error) => {
+    if (error) {
+      console.error("[DEBUG] SMTP connection succeeds: false. Reason:", error.message || error);
+    } else {
+      console.log("[DEBUG] SMTP connection succeeds: true");
+    }
+  });
+
+  return transporter;
 }
 
 export async function sendEmailOTP(email: string, otp: string, userName?: string): Promise<boolean> {
@@ -29,7 +48,6 @@ export async function sendEmailOTP(email: string, otp: string, userName?: string
   const name = userName || "Driver";
   const logoUrl = "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png";
   const emailFrom = process.env.EMAIL_FROM || "no-reply@fixora.com";
-  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
 
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #080808; color: #FFFFFF; padding: 40px; border-radius: 16px; max-width: 600px; margin: 0 auto; border: 1px solid rgba(255, 212, 0, 0.15); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);">
@@ -46,7 +64,7 @@ export async function sendEmailOTP(email: string, otp: string, userName?: string
         </div>
         <div style="background-color: rgba(255,212,0,0.03); border-left: 3px solid #FFD400; padding: 12px 16px; border-radius: 4px; margin-bottom: 30px;">
           <p style="color: #9A9A9A; font-size: 12px; margin: 0; line-height: 1.5;">
-            ⏰ <strong>Expiry Notice:</strong> This validation code is highly sensitive and will expire in exactly <strong>5 minutes</strong>. If you did not trigger this request, please change your credentials immediately.
+            ⏰ <strong>Expiry Notice:</strong> This validation code is highly sensitive and will expire in exactly <strong>10 minutes</strong>. If you did not trigger this request, please change your credentials immediately.
           </p>
         </div>
       </div>
@@ -62,38 +80,30 @@ export async function sendEmailOTP(email: string, otp: string, userName?: string
   console.log(`[EMAIL] Initiating OTP send process to: ${email}`);
 
   try {
-    const transporter = getTransporter();
-    await transporter.sendMail({
+    const activeTransporter = getTransporter();
+    await activeTransporter.sendMail({
       from: `"FIXORA" <${emailFrom}>`,
       to: email,
       subject: subject,
       html: htmlContent,
-      text: `Hello ${name},\n\nYour FIXORA verification code is ${otp}\n\nThis code expires in 5 minutes.`,
+      text: `Hello ${name},\n\nYour FIXORA verification code is ${otp}\n\nThis code expires in 10 minutes.`,
     });
+    // Debugging log: Whether the email was sent successfully
+    console.log(`[DEBUG] Email sent successfully to: ${email}`);
     return true;
   } catch (error: any) {
     console.error("[SMTP SERVER ERROR] Nodemailer sendEmailOTP error:", error);
     const errMsg = error.message || "";
     const errCode = error.code || "";
 
-    // If it's the custom validation checks we threw, rethrow directly
-    if (errMsg === "EMAIL_SERVER_USER is missing" || errMsg === "EMAIL_SERVER_PASSWORD is missing") {
+    if (errMsg === "Missing EMAIL_SERVER_USER" || errMsg === "Missing EMAIL_SERVER_PASSWORD") {
       throw error;
     }
 
-    // Handle authentication failures
     if (errCode === 'EAUTH' || errMsg.includes('Authentication') || errMsg.includes('Username and Password') || errMsg.includes('535')) {
-      if (smtpHost.includes("gmail.com")) {
-        throw new Error("Invalid Gmail App Password");
-      }
       throw new Error("SMTP authentication failed");
     }
 
-    // Handle connection failures
-    if (errCode === 'ECONNREFUSED' || errCode === 'ETIMEOUT' || errMsg.includes('connect') || errMsg.includes('timeout')) {
-      throw new Error("Unable to connect to SMTP server");
-    }
-
-    throw new Error(errMsg || "Failed to send email verification");
+    throw new Error("Email could not be sent");
   }
 }
