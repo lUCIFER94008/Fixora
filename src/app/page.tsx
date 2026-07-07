@@ -37,11 +37,12 @@ export default function Home() {
   
   // Interactive Chatbot State
   const [chatMessage, setChatMessage] = useState("");
-  const [chatHistory, setChatHistory] = useState([
-    { role: "assistant", content: "Welcome to Fixora AI Diagnostics. How is your vehicle behaving? Describe any mechanical issues." }
+  const [chatHistory, setChatHistory] = useState<{role: string; content: string; timestamp: string}[]>([
+    { role: "assistant", content: "Welcome to Fixora AI Diagnostics. How is your vehicle behaving? Describe any mechanical issues.", timestamp: new Date().toISOString() }
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -58,44 +59,41 @@ export default function Home() {
 
   if (!mounted) return null;
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatMessage.trim()) return;
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!chatMessage.trim() || isTyping) return;
 
-    const userMsg = chatMessage;
-    setChatHistory(prev => [...prev, { role: "user", content: userMsg }]);
+    const userMsg = chatMessage.trim();
+    const now = new Date().toISOString();
+    setChatHistory(prev => [...prev, { role: "user", content: userMsg, timestamp: now }]);
     setChatMessage("");
     setIsTyping(true);
 
     try {
-      const response = await api.post("/api/chat/messages", {
-        receiver_id: "ai_bot",
-        content: userMsg
-      }, {
-        headers: { "Authorization": "Bearer mock_token" } 
-      }).catch(() => {
-        return {
-          data: {
-            content: userMsg.toLowerCase().includes("brake") 
-              ? "Squealing brakes are generally caused by worn friction pads. I recommend scheduling an inspection at NEON HYPERGARAGE." 
-              : "That sounds like a mechanical anomaly. Submitted details are logged in our diagnostic engine. I suggest registering an account to sync with a technician."
-          }
-        };
+      const response = await fetch("/api/chat/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userMsg })
       });
+      const data = await response.json();
       
-      const reply = response.data.content;
-      
-      setTimeout(() => {
-        setChatHistory(prev => [...prev, { role: "assistant", content: reply }]);
-        setIsTyping(false);
-      }, 750);
-
+      setChatHistory(prev => [...prev, { role: "assistant", content: data.reply, timestamp: data.timestamp || new Date().toISOString() }]);
+      setIsTyping(false);
     } catch (err) {
-      setTimeout(() => {
-        setChatHistory(prev => [...prev, { role: "assistant", content: "I'm having trouble connecting to the neural core. Please try again!" }]);
-        setIsTyping(false);
-      }, 500);
+      setChatHistory(prev => [...prev, { role: "assistant", content: "🔌 Neural core temporarily offline. Please try again shortly.", timestamp: new Date().toISOString() }]);
+      setIsTyping(false);
     }
+  };
+
+  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const formatTimestamp = (ts: string) => {
+    try { return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return ""; }
   };
 
   return (
@@ -427,7 +425,7 @@ export default function Home() {
 
           {/* Interactive Chat Console */}
           <div className="lg:col-span-7 w-full">
-            <div className="w-full bg-[#151515] rounded-[22px] border border-[rgba(255,255,255,0.08)] shadow-2xl overflow-hidden flex flex-col h-[400px]">
+            <div className="w-full bg-[#151515] rounded-[22px] border border-[rgba(255,255,255,0.08)] shadow-2xl overflow-hidden flex flex-col h-[460px]">
               
               {/* Header */}
               <div className="px-6 py-4 bg-[#111111] border-b border-[rgba(255,255,255,0.06)] flex items-center justify-between">
@@ -435,39 +433,56 @@ export default function Home() {
                   <div className="w-2.5 h-2.5 rounded-full bg-[#FF5959]/90" />
                   <div className="w-2.5 h-2.5 rounded-full bg-[#FFD400]/90" />
                   <div className="w-2.5 h-2.5 rounded-full bg-[#7CFF7A]/90" />
-                  <span className="text-[11px] font-mono text-[#9A9A9A] ml-2">fixora-chatbot-shell</span>
+                  <span className="text-[11px] font-mono text-[#9A9A9A] ml-2">fixora-ai-diagnostics</span>
                 </div>
-                <div className="text-[9px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white uppercase font-mono">Synced</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#7CFF7A] animate-pulse" />
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#7CFF7A] uppercase font-mono">Neural Core Active</span>
+                </div>
               </div>
 
               {/* Chat history */}
-              <div className="flex-1 p-6 overflow-y-auto space-y-4 font-sans text-xs">
+              <div className="flex-1 p-5 overflow-y-auto space-y-4 font-sans text-xs">
                 {chatHistory.map((msg, idx) => (
                   <div 
                     key={idx} 
-                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                    className={`flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
                   >
-                    <div className={`max-w-[80%] p-3.5 rounded-[18px] ${
+                    <div className={`flex items-center gap-1.5 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                      {msg.role === "assistant" && (
+                        <div className="w-5 h-5 rounded-full bg-[#FFD400]/20 border border-[#FFD400]/40 flex items-center justify-center">
+                          <Sparkles size={10} className="text-[#FFD400]" />
+                        </div>
+                      )}
+                      <span className="text-[9px] uppercase tracking-wider font-bold text-[#9A9A9A]">
+                        {msg.role === "user" ? "You" : "Fixora AI Core"}
+                      </span>
+                    </div>
+                    <div className={`max-w-[82%] p-3.5 rounded-[18px] leading-relaxed whitespace-pre-wrap ${
                       msg.role === "user" 
                         ? "bg-[#FFD400] text-black font-semibold rounded-tr-none" 
                         : "bg-[#111111] border border-[rgba(255,255,255,0.06)] text-white rounded-tl-none"
                     }`}>
-                      <span className={`text-[8px] uppercase tracking-wider block mb-1 ${
-                        msg.role === "user" ? "text-black/60" : "text-[#9A9A9A]"
-                      }`}>
-                        {msg.role === "user" ? "Vehicle Owner" : "Fixora AI Core"}
-                      </span>
                       {msg.content}
                     </div>
+                    {msg.timestamp && (
+                      <span className="text-[9px] text-[#9A9A9A]/60 font-mono px-1">
+                        {formatTimestamp(msg.timestamp)}
+                      </span>
+                    )}
                   </div>
                 ))}
                 
                 {isTyping && (
-                  <div className="flex justify-start">
-                    <div className="bg-[#111111] border border-[rgba(255,255,255,0.06)] p-4 rounded-[18px] rounded-tl-none text-[#9A9A9A] flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 bg-[#9A9A9A] rounded-full animate-bounce" />
-                      <span className="w-1.5 h-1.5 bg-[#9A9A9A] rounded-full animate-bounce [animation-delay:0.2s]" />
-                      <span className="w-1.5 h-1.5 bg-[#9A9A9A] rounded-full animate-bounce [animation-delay:0.4s]" />
+                  <div className="flex items-start gap-2">
+                    <div className="w-5 h-5 rounded-full bg-[#FFD400]/20 border border-[#FFD400]/40 flex items-center justify-center flex-shrink-0">
+                      <Sparkles size={10} className="text-[#FFD400]" />
+                    </div>
+                    <div className="bg-[#111111] border border-[rgba(255,255,255,0.06)] px-5 py-4 rounded-[18px] rounded-tl-none text-[#9A9A9A] flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce" />
+                      <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce [animation-delay:0.4s]" />
+                      <span className="text-[10px] ml-1 text-[#9A9A9A]">Analyzing...</span>
                     </div>
                   </div>
                 )}
@@ -475,22 +490,30 @@ export default function Home() {
               </div>
 
               {/* Input console */}
-              <form onSubmit={handleSendMessage} className="p-4 bg-[#111111] border-t border-[rgba(255,255,255,0.06)] flex gap-2">
-                <input 
-                  type="text" 
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  placeholder="e.g. Drivetrain is slipping on acceleration, Brakes squealing..." 
-                  className="flex-1 bg-[#080808] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-xs text-white focus:outline-none focus:border-[#FFD400] focus:ring-1 focus:ring-[#FFD400]/40 placeholder-[#9A9A9A]"
-                />
-                <button 
-                  type="submit" 
-                  aria-label="Send message"
-                  className="p-3 bg-[#FFD400] text-black hover:bg-[#FFC300] rounded-[16px] transition-colors"
-                >
-                  <Send size={14} />
-                </button>
-              </form>
+              <div className="p-4 bg-[#111111] border-t border-[rgba(255,255,255,0.06)]">
+                <div className="flex gap-2 items-end">
+                  <textarea
+                    ref={chatInputRef}
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    onKeyDown={handleChatKeyDown}
+                    placeholder="Describe your vehicle issue... (Enter to send, Shift+Enter for newline)"
+                    rows={2}
+                    className="flex-1 bg-[#080808] border border-[#2A2A2A] rounded-[16px] px-4 py-3 text-xs text-white focus:outline-none focus:border-[#FFD400] focus:ring-1 focus:ring-[#FFD400]/40 placeholder-[#9A9A9A] resize-none leading-relaxed"
+                  />
+                  <button 
+                    onClick={() => handleSendMessage()}
+                    disabled={isTyping || !chatMessage.trim()}
+                    aria-label="Send message"
+                    className="p-3 bg-[#FFD400] text-black hover:bg-[#FFC300] disabled:opacity-50 disabled:cursor-not-allowed rounded-[16px] transition-colors flex-shrink-0"
+                  >
+                    <Send size={14} />
+                  </button>
+                </div>
+                <p className="text-[9px] text-[#9A9A9A]/50 mt-1.5 font-mono">
+                  Press <kbd className="px-1 py-0.5 border border-white/10 rounded text-[8px]">Enter</kbd> to send · <kbd className="px-1 py-0.5 border border-white/10 rounded text-[8px]">Shift+Enter</kbd> for new line
+                </p>
+              </div>
 
             </div>
           </div>

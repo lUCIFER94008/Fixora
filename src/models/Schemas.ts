@@ -339,3 +339,34 @@ const NotificationSchema = new Schema<INotification>({
 export const Notification: Model<INotification> = 
   mongoose.models.Notification || 
   mongoose.model<INotification>("Notification", NotificationSchema);
+
+// --- Message Schema (Real-time Messaging System) ---
+export interface IMessage {
+  complaintId?: string;
+  senderId?: string;
+  receiverId?: string;
+  senderRole: "owner" | "workshop" | "admin" | "ai";
+  message: string;
+  attachments?: string[];
+  messageType: "text" | "image" | "pdf" | "video" | "document";
+  isSeen: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const MessageSchema = new Schema<IMessage>({
+  complaintId: { type: String, index: true },
+  senderId: { type: String, index: true },
+  receiverId: { type: String, index: true },
+  senderRole: { type: String, enum: ["owner", "workshop", "admin", "ai"], required: true },
+  message: { type: String, required: true },
+  attachments: [{ type: String }],
+  messageType: { type: String, enum: ["text", "image", "pdf", "video", "document"], default: "text" },
+  isSeen: { type: Boolean, default: false }
+}, {
+  timestamps: true
+});
+
+export const Message: Model<IMessage> = 
+  mongoose.models.Message || 
+  mongoose.model<IMessage>("Message", MessageSchema);

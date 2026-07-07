@@ -23,6 +23,7 @@ const socketHandler = (req: NextApiRequest, res: any) => {
   });
 
   res.socket.server.io = io;
+  (global as any).io = io;
 
   io.on("connection", (socket) => {
     const userId = socket.handshake.query.userId;
@@ -46,11 +47,14 @@ const socketHandler = (req: NextApiRequest, res: any) => {
       if (data.receiver_id) {
         io.to(data.receiver_id).emit("TYPING", {
           sender_id: userId,
+          senderId: userId,
           is_typing: data.is_typing,
-          complaint_id: data.complaint_id
+          complaint_id: data.complaint_id,
+          complaintId: data.complaint_id
         });
       }
     });
+
 
     socket.on("SEEN", (data) => {
       if (data.receiver_id) {

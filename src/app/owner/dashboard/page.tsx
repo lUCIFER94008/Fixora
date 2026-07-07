@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { 
@@ -85,24 +85,33 @@ export default function OwnerDashboard() {
   const [typedMessage, setTypedMessage] = useState("");
   const [workshopIsTyping, setWorkshopIsTyping] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState<any>(null);
+  const [chatRoomId, setChatRoomId] = useState<string | null>(null);
+  const [chatRoomReadOnly, setChatRoomReadOnly] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { isConnected, sendTyping, sendSeen } = useChat({
     userId: user?._id,
     onMessageReceived: (message) => {
-      if (activeChatWorkshop && (message.sender_id === activeChatWorkshop._id || message.sender_id === activeChatWorkshop.owner_id?._id || message.sender_id === activeChatWorkshop.owner_id)) {
+      const isActiveRoom = message.complaintId === chatRoomId;
+      if (isActiveRoom) {
         setChatMessages(prev => [...prev, message]);
-        sendSeen(message.sender_id);
+        sendSeen(message.senderId || message.sender_id);
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      } else {
+        setUnreadCount(prev => prev + 1);
       }
     },
     onStatusUpdate: () => {
       fetchDashboardData();
     },
     onTypingReceived: (typingEvent) => {
-      if (activeChatWorkshop && (typingEvent.sender_id === activeChatWorkshop._id || typingEvent.sender_id === activeChatWorkshop.owner_id?._id || typingEvent.sender_id === activeChatWorkshop.owner_id)) {
+      if (chatRoomId && typingEvent.complaintId === chatRoomId) {
         setWorkshopIsTyping(typingEvent.is_typing);
       }
     }
   });
+
 
   // Authenticate user session
   // Load session and dashboard datasets from MongoDB
@@ -325,57 +334,78 @@ export default function OwnerDashboard() {
     }
   };
 
-  const handleSelectWorkshopChat = async (workshop: any) => {
+  const handleSelectWorkshopChat = async (workshop: any, complaintId?: string) => {
     setActiveChatWorkshop(workshop);
     setActiveTab("chat");
+    const roomId = complaintId || activeComplaint?._id;
+    setChatRoomId(roomId || null);
+    setChatRoomReadOnly(false);
+    setChatMessages([]);
+    if (roomId) {
+      try {
+        const response = await api.get(`/api/chat/${roomId}`);
+        setChatMessages(response.data.messages || response.data || []);
+        setChatRoomReadOnly(response.data.readOnly || false);
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 150);
+      } catch {
+        setChatMessages([]);
+      }
+    }
+    // Reset unread badge when opening a room
+    setUnreadCount(0);
+  };
+
+  const handleSendChatMessage = async () => {
+    if (!typedMessage.trim() || !activeChatWorkshop || chatRoomReadOnly) return;
+
+    const roomId = chatRoomId || activeComplaint?._id;
+    const receiverId = activeChatWorkshop.owner_id?._id || activeChatWorkshop.owner_id || activeChatWorkshop._id;
+    const optimistic = {
+      _id: `temp_${Date.now()}`,
+      senderId: user?._id,
+      receiverId,
+      senderRole: "owner",
+      message: typedMessage,
+      complaintId: roomId,
+      createdAt: new Date().toISOString(),
+      isSeen: false
+    };
+    setChatMessages(prev => [...prev, optimistic]);
+    setTypedMessage("");
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+
     try {
-      const response = await api.get(`/api/chat/history/${workshop.owner_id || workshop._id}`);
-      setChatMessages(response.data);
+      await api.post("/api/chat/send", {
+        complaintId: roomId,
+        receiverId,
+        message: optimistic.message
+      });
     } catch {
-      setChatMessages([
-        { sender_id: "workshop_owner_id", content: `Welcome to ${workshop.name} service chat window. Send questions below.`, seen: true }
-      ]);
+      // message was optimistically added — no revert
     }
   };
 
-  const handleSendChatMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!typedMessage.trim() || !activeChatWorkshop) return;
-
-    const payload = {
-      receiver_id: activeChatWorkshop.owner_id || activeChatWorkshop._id,
-      content: typedMessage,
-      complaint_id: activeComplaint?._id
-    };
-
-    try {
-      const response = await api.post("/api/chat/messages", payload);
-      setChatMessages(prev => [...prev, response.data]);
-      setTypedMessage("");
-    } catch {
-      const mockMsg = {
-        _id: Math.random().toString(),
-        sender_id: user._id,
-        receiver_id: payload.receiver_id,
-        content: typedMessage,
-        created_at: new Date().toISOString()
-      };
-      setChatMessages(prev => [...prev, mockMsg]);
-      setTypedMessage("");
+  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendChatMessage();
     }
   };
 
   const handleTypingEvent = () => {
-    if (!activeChatWorkshop) return;
-    sendTyping(activeChatWorkshop.owner_id || activeChatWorkshop._id, true, activeComplaint?._id);
-    
+    if (!activeChatWorkshop || !chatRoomId) return;
+    const receiverId = activeChatWorkshop.owner_id?._id || activeChatWorkshop.owner_id || activeChatWorkshop._id;
+    sendTyping(receiverId, true, chatRoomId);
     if (typingTimeout) clearTimeout(typingTimeout);
-    
     setTypingTimeout(
       setTimeout(() => {
-        sendTyping(activeChatWorkshop.owner_id || activeChatWorkshop._id, false, activeComplaint?._id);
+        sendTyping(receiverId, false, chatRoomId);
       }, 1000)
     );
+  };
+
+  const formatMsgTime = (ts: string) => {
+    try { return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return ""; }
   };
 
   const handleLogout = () => {
@@ -1185,52 +1215,110 @@ export default function OwnerDashboard() {
         {/* TAB: REAL-TIME CHAT */}
         {activeTab === "chat" && activeChatWorkshop && (
           <div className="space-y-6 text-left">
-            <div>
-              <h1 className="text-3xl font-extrabold tracking-tight">Channel: {activeChatWorkshop.name}</h1>
-              <p className="text-xs text-[#9A9A9A] mt-1">Discuss repairs in real-time. Typing indicator enabled.</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-extrabold tracking-tight">Channel: {activeChatWorkshop.name}</h1>
+                <p className="text-xs text-[#9A9A9A] mt-1">
+                  {chatRoomReadOnly
+                    ? "⚠️ This complaint is closed. Chat is read-only."
+                    : "Discuss repairs in real-time. Typing indicator enabled."}
+                </p>
+              </div>
+              <div className={`flex items-center gap-2 text-[10px] px-3 py-1.5 rounded-full border ${
+                isConnected ? "bg-[#7CFF7A]/10 border-[#7CFF7A]/30 text-[#7CFF7A]" : "bg-white/5 border-white/10 text-[#9A9A9A]"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-[#7CFF7A] animate-pulse" : "bg-[#9A9A9A]"}`} />
+                {isConnected ? "Live" : "Offline"}
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[480px]">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" style={{ height: "500px" }}>
               <div className="lg:col-span-8 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] overflow-hidden flex flex-col h-full shadow-md">
+                {/* Chat header */}
                 <div className="p-4 bg-[#111111] border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between text-[10px] text-[#9A9A9A] font-bold">
-                  <span>Channel Status: {isConnected ? "Live Sync" : "Sync Offline"}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#FF5959]/90" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#FFD400]/90" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#7CFF7A]/90" />
+                    <span className="font-mono text-[#9A9A9A]">fixora-chat-channel</span>
+                  </div>
                   {workshopIsTyping && <span className="text-[#FFD400] animate-pulse">Technician is typing...</span>}
                 </div>
 
-                <div className="flex-1 p-6 overflow-y-auto space-y-4 text-xs">
-                  {chatMessages.map((msg, i) => (
-                    <div 
-                      key={i} 
-                      className={`flex ${msg.sender_id === user?._id ? "justify-end" : "justify-start"}`}
-                    >
-                      <div className={`max-w-[70%] p-3 rounded-[18px] ${
-                        msg.sender_id === user?._id 
-                          ? "bg-[#FFD400] text-black font-semibold rounded-tr-none" 
-                          : "bg-[#111111] border border-[rgba(255,255,255,0.04)] text-white rounded-tl-none"
-                      }`}>
-                        {msg.content}
+                {/* Messages */}
+                <div className="flex-1 p-5 overflow-y-auto space-y-4 text-xs">
+                  {chatMessages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-[#9A9A9A] gap-3">
+                      <MessageSquare size={32} className="opacity-20" />
+                      <p className="text-xs">No messages yet. Start the conversation below.</p>
+                    </div>
+                  )}
+                  {chatMessages.map((msg, i) => {
+                    const isMe = (msg.senderId || msg.sender_id) === user?._id;
+                    const msgText = msg.message || msg.content || "";
+                    const msgTime = msg.createdAt || msg.created_at || msg.timestamp;
+                    return (
+                      <div key={msg._id || i} className={`flex flex-col gap-0.5 ${isMe ? "items-end" : "items-start"}`}>
+                        <div className={`max-w-[75%] p-3.5 rounded-[18px] leading-relaxed whitespace-pre-wrap ${
+                          isMe
+                            ? "bg-[#FFD400] text-black font-semibold rounded-tr-none"
+                            : "bg-[#111111] border border-[rgba(255,255,255,0.04)] text-white rounded-tl-none"
+                        }`}>
+                          {msgText}
+                        </div>
+                        <div className={`flex items-center gap-1 text-[9px] text-[#9A9A9A]/60 font-mono px-1 ${isMe ? "flex-row-reverse" : ""}`}>
+                          <span>{formatMsgTime(msgTime)}</span>
+                          {isMe && (
+                            <span className={`ml-1 ${msg.isSeen ? "text-[#7CFF7A]" : "text-[#9A9A9A]"}`}>
+                              {msg.isSeen ? "✓✓" : "✓"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {workshopIsTyping && (
+                    <div className="flex items-center gap-2">
+                      <div className="bg-[#111111] border border-white/5 px-4 py-3 rounded-[18px] rounded-tl-none flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce" />
+                        <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce [animation-delay:0.2s]" />
+                        <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce [animation-delay:0.4s]" />
                       </div>
                     </div>
-                  ))}
+                  )}
+                  <div ref={chatEndRef} />
                 </div>
 
-                <form onSubmit={handleSendChatMessage} className="p-4 bg-[#111111] border-t border-[rgba(255,255,255,0.04)] flex gap-2">
-                  <input 
-                    type="text" 
-                    value={typedMessage}
-                    onChange={(e) => {
-                      setTypedMessage(e.target.value);
-                      handleTypingEvent();
-                    }}
-                    placeholder="Enter mechanical inquiries..." 
-                    className="flex-1 bg-[#080808] border border-[#2A2A2A] rounded-[12px] px-4 py-3 text-xs text-white focus:outline-none focus:border-[#FFD400]"
-                  />
-                  <button type="submit" aria-label="Send message" className="p-3 bg-[#FFD400] text-black hover:bg-[#FFC300] rounded-[12px] transition-colors">
-                    <Send size={14} />
-                  </button>
-                </form>
+                {/* Input */}
+                {!chatRoomReadOnly ? (
+                  <div className="p-4 bg-[#111111] border-t border-[rgba(255,255,255,0.04)]">
+                    <div className="flex gap-2 items-end">
+                      <textarea
+                        value={typedMessage}
+                        onChange={(e) => { setTypedMessage(e.target.value); handleTypingEvent(); }}
+                        onKeyDown={handleChatKeyDown}
+                        placeholder="Enter message... (Enter to send, Shift+Enter for newline)"
+                        rows={2}
+                        className="flex-1 bg-[#080808] border border-[#2A2A2A] rounded-[12px] px-4 py-3 text-xs text-white focus:outline-none focus:border-[#FFD400] resize-none leading-relaxed"
+                      />
+                      <button
+                        onClick={handleSendChatMessage}
+                        disabled={!typedMessage.trim()}
+                        aria-label="Send message"
+                        className="p-3 bg-[#FFD400] text-black hover:bg-[#FFC300] disabled:opacity-50 rounded-[12px] transition-colors flex-shrink-0"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-[#111111] border-t border-[rgba(255,255,255,0.04)] text-center text-[10px] text-[#9A9A9A]">
+                    🔒 Chat closed — complaint is {activeComplaint?.status || "resolved"}
+                  </div>
+                )}
               </div>
 
+              {/* Sidebar: complaint context */}
               <div className="lg:col-span-4 space-y-4">
                 <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] text-xs">
                   <h3 className="font-bold text-white uppercase block mb-3 border-b border-white/5 pb-2">Active Complaint Context</h3>
@@ -1241,12 +1329,37 @@ export default function OwnerDashboard() {
                         <span className="font-semibold text-white truncate block uppercase">{activeComplaint.title}</span>
                       </div>
                       <div>
-                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Telemetry Status</span>
+                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Status</span>
                         <span className="font-bold text-[#FFD400] uppercase">{activeComplaint.status}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Room ID</span>
+                        <span className="font-mono text-[9px] text-white/40 truncate block">{chatRoomId || "—"}</span>
                       </div>
                     </div>
                   ) : (
                     <p className="text-[#9A9A9A] text-[10px]">No active complaints references.</p>
+                  )}
+                </div>
+
+                {/* Workshop info */}
+                <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] text-xs space-y-3">
+                  <h3 className="font-bold text-white uppercase border-b border-white/5 pb-2">Workshop</h3>
+                  <div>
+                    <span className="text-[9px] text-[#9A9A9A] uppercase">Name</span>
+                    <p className="font-semibold text-white">{activeChatWorkshop.name}</p>
+                  </div>
+                  {activeChatWorkshop.address && (
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase">Address</span>
+                      <p className="text-white/80">{activeChatWorkshop.address}</p>
+                    </div>
+                  )}
+                  {activeChatWorkshop.phone && (
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase">Phone</span>
+                      <p className="text-white/80">{activeChatWorkshop.phone}</p>
+                    </div>
                   )}
                 </div>
               </div>
