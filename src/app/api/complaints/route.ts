@@ -1,29 +1,40 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { Complaint, User } from "@/models/Schemas";
-import { verifyToken } from "@/lib/jwt";
+import { Complaint, Notification } from "@/models/Schemas";
+import { verifyUser } from "@/lib/jwt";
 
 export async function GET(req: Request) {
   try {
     await connectToDatabase();
-    const tokenUser = verifyToken(req);
+    const tokenUser = await verifyUser(req);
     if (!tokenUser) {
       return NextResponse.json({ detail: "Unauthorized" }, { status: 401 });
     }
 
     let list: any[] = [];
     if (tokenUser.role === "owner") {
-      list = await Complaint.find({ owner_id: tokenUser._id }).sort({ created_at: -1 });
+      list = await Complaint.find({ owner_id: tokenUser._id })
+        .populate("owner_id", "name email phone profile_image")
+        .populate("vehicle_id")
+        .populate("workshop_id", "name email phone profile_image")
+        .sort({ created_at: -1 });
     } else if (tokenUser.role === "workshop") {
-      // Return complaints that are either Pending (available for acceptance) or already accepted by this workshop
       list = await Complaint.find({
         $or: [
           { status: "Pending" },
           { workshop_id: tokenUser._id }
         ]
-      }).sort({ created_at: -1 });
+      })
+        .populate("owner_id", "name email phone profile_image")
+        .populate("vehicle_id")
+        .populate("workshop_id", "name email phone profile_image")
+        .sort({ created_at: -1 });
     } else if (tokenUser.role === "admin") {
-      list = await Complaint.find({}).sort({ created_at: -1 });
+      list = await Complaint.find({})
+        .populate("owner_id", "name email phone profile_image")
+        .populate("vehicle_id")
+        .populate("workshop_id", "name email phone profile_image")
+        .sort({ created_at: -1 });
     }
 
     return NextResponse.json(list);
@@ -36,12 +47,31 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     await connectToDatabase();
-    const tokenUser = verifyToken(req);
+    const tokenUser = await verifyUser(req);
     if (!tokenUser) {
       return NextResponse.json({ detail: "Unauthorized" }, { status: 401 });
     }
 
-    const { vehicle_id, title, description, priority, category, location, images, workshop_id, voice_url, image_url } = await req.json();
+    // Security check: Only owners can create complaints
+    if (tokenUser.role !== "owner" && tokenUser.role !== "admin") {
+      return NextResponse.json({ detail: "Only Owners can create complaints" }, { status: 403 });
+    }
+
+    const { 
+      vehicle_id, 
+      title, 
+      description, 
+      priority, 
+      category, 
+      location, 
+      images, 
+      latitude, 
+      longitude, 
+      address, 
+      workshop_id, 
+      voice_url, 
+      image_url 
+    } = await req.json();
 
     if (!vehicle_id || !title || !description) {
       return NextResponse.json({ detail: "Missing required fields" }, { status: 400 });
@@ -98,9 +128,12 @@ export async function POST(req: Request) {
       vehicle_id,
       title,
       description,
-      category: category || "General",
-      location: location || "Unspecified Location",
+      category: category || aiCategory,
+      location: location || address || "Unspecified Location",
       images: images || [],
+      latitude: latitude || undefined,
+      longitude: longitude || undefined,
+      address: address || location || "Unspecified Location",
       priority: priority || "Normal",
       status: "Pending",
       workshop_id: workshop_id ? workshop_id : undefined,
@@ -112,7 +145,23 @@ export async function POST(req: Request) {
       estimated_completion: estimated_time
     });
 
-    return NextResponse.json(newComplaint);
+    // Create Notification for the Workshop if targeted
+    if (workshop_id) {
+      await Notification.create({
+        user_id: workshop_id,
+        title: "New Complaint Dispatch",
+        message: `New complaint filed: "${title}" by customer ${tokenUser.name}.`,
+        type: "info"
+      });
+    }
+
+    // Populate references before returning
+    const populated = await Complaint.findById(newComplaint._id)
+      .populate("owner_id", "name email phone profile_image")
+      .populate("vehicle_id")
+      .populate("workshop_id", "name email phone profile_image");
+
+    return NextResponse.json(populated);
   } catch (err: any) {
     console.error("Complaints POST error:", err);
     return NextResponse.json({ detail: "Server error" }, { status: 500 });

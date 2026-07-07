@@ -3,7 +3,10 @@ import { connectToDatabase } from "@/lib/db";
 import { Workshop } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
 
-export async function GET(req: Request) {
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     await connectToDatabase();
     const tokenUser = await verifyUser(req);
@@ -11,10 +14,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ detail: "Unauthorized" }, { status: 401 });
     }
 
-    const list = await Workshop.find({}).populate("owner_id", "name email phone profile_image");
-    return NextResponse.json(list);
+    const { id } = await params;
+    const ws = await Workshop.findById(id).populate("owner_id", "name email phone profile_image");
+    if (!ws) {
+      return NextResponse.json({ detail: "Workshop not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(ws);
   } catch (err: any) {
-    console.error("Workshops GET error:", err);
+    console.error("Workshop GET detail error:", err);
     return NextResponse.json({ detail: "Server error" }, { status: 500 });
   }
 }

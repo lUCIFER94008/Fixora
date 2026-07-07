@@ -99,6 +99,11 @@ export async function POST(req: Request) {
         is_verified: false,
         rating: 5.0,
         review_count: 0,
+        city: "Pune",
+        working_hours: "9:00 AM - 7:00 PM",
+        current_status: "Open",
+        latitude: 18.5204,
+        longitude: 73.8567,
         created_at: new Date()
       });
     }

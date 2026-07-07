@@ -25,8 +25,10 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import api from "@/services/api";
+import { useSession, signOut } from "next-auth/react";
 
 export default function Home() {
+  const { data: session } = useSession();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -134,18 +136,51 @@ export default function Home() {
               >
                 {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
               </button>
-              <Link 
-                href="/login" 
-                className="px-5 py-2 rounded-full text-xs font-semibold border border-[rgba(255,255,255,0.08)] bg-transparent hover:bg-white/5 transition-all text-white"
-              >
-                Login
-              </Link>
-              <Link 
-                href="/register" 
-                className="px-5 py-2 rounded-full text-xs font-bold bg-[#FFD400] text-black hover:bg-[#FFC300] hover:scale-[1.03] transition-all shadow-md"
-              >
-                Get Started
-              </Link>
+              {session?.user ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={session.user.image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
+                      alt={session.user.name || "profile"} 
+                      className="w-8 h-8 rounded-full border border-[#FFD400]/40 object-cover"
+                    />
+                    <div className="flex flex-col items-start leading-none">
+                      <span className="text-[11px] font-bold text-white leading-tight">{session.user.name}</span>
+                      <span className="text-[9px] uppercase tracking-wider text-[#FFD400] font-mono leading-none">{(session.user as any).role || "Owner"}</span>
+                    </div>
+                  </div>
+                  <Link 
+                    href={(session.user as any).role === "workshop" ? "/workshop/dashboard" : "/owner/dashboard"}
+                    className="px-4 py-2 rounded-full text-xs font-bold bg-[#FFD400] text-black hover:bg-[#FFC300] hover:scale-[1.02] transition-all"
+                  >
+                    Dashboard
+                  </Link>
+                  <button 
+                    onClick={() => {
+                      localStorage.clear();
+                      signOut({ callbackUrl: "/" });
+                    }}
+                    className="px-4 py-2 rounded-full text-xs font-semibold border border-[rgba(255,255,255,0.1)] hover:bg-white/5 transition-all text-white"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Link 
+                    href="/login" 
+                    className="px-5 py-2 rounded-full text-xs font-semibold border border-[rgba(255,255,255,0.08)] bg-transparent hover:bg-white/5 transition-all text-white"
+                  >
+                    Login
+                  </Link>
+                  <Link 
+                    href="/register" 
+                    className="px-5 py-2 rounded-full text-xs font-bold bg-[#FFD400] text-black hover:bg-[#FFC300] hover:scale-[1.03] transition-all shadow-md"
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* Mobile hamburger */}
@@ -176,8 +211,43 @@ export default function Home() {
               <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="text-[#9A9A9A] hover:text-white font-medium py-1">FAQ</a>
               <hr className="border-[rgba(255,255,255,0.06)] my-2" />
               <div className="flex flex-col gap-3">
-                <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2.5 rounded-[16px] border border-[rgba(255,255,255,0.08)] text-xs font-semibold">Login</Link>
-                <Link href="/register" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2.5 rounded-[16px] bg-[#FFD400] text-black text-xs font-bold">Get Started</Link>
+                {session?.user ? (
+                  <>
+                    <div className="flex items-center gap-3 p-2.5 rounded-[12px] bg-white/5 border border-white/10">
+                      <img 
+                        src={session.user.image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
+                        alt="profile" 
+                        className="w-9 h-9 rounded-full object-cover border border-[#FFD400]/40"
+                      />
+                      <div>
+                        <div className="text-xs font-bold text-white leading-none">{session.user.name}</div>
+                        <div className="text-[9px] uppercase tracking-wider text-[#FFD400] font-mono mt-1">{(session.user as any).role || "Owner"}</div>
+                      </div>
+                    </div>
+                    <Link 
+                      href={(session.user as any).role === "workshop" ? "/workshop/dashboard" : "/owner/dashboard"}
+                      onClick={() => setMobileMenuOpen(false)} 
+                      className="w-full text-center py-2.5 rounded-[16px] bg-[#FFD400] text-black text-xs font-bold"
+                    >
+                      Dashboard
+                    </Link>
+                    <button 
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        localStorage.clear();
+                        signOut({ callbackUrl: "/" });
+                      }}
+                      className="w-full text-center py-2.5 rounded-[16px] border border-[rgba(255,255,255,0.08)] text-xs font-semibold text-white"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2.5 rounded-[16px] border border-[rgba(255,255,255,0.08)] text-xs font-semibold">Login</Link>
+                    <Link href="/register" onClick={() => setMobileMenuOpen(false)} className="w-full text-center py-2.5 rounded-[16px] bg-[#FFD400] text-black text-xs font-bold">Get Started</Link>
+                  </>
+                )}
               </div>
             </div>
           )}

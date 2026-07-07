@@ -48,6 +48,7 @@ export interface IVehicle {
   license_plate: string;
   mileage: number;
   fuel_type: "Electric" | "Hybrid" | "Petrol" | "Diesel";
+  image?: string;
   created_at?: Date;
 }
 
@@ -59,6 +60,7 @@ const VehicleSchema = new Schema<IVehicle>({
   license_plate: { type: String, required: true, unique: true },
   mileage: { type: Number, required: true },
   fuel_type: { type: String, enum: ["Electric", "Hybrid", "Petrol", "Diesel"], required: true },
+  image: { type: String },
   created_at: { type: Date, default: Date.now }
 });
 
@@ -75,6 +77,11 @@ export interface IWorkshop {
   is_verified: boolean;
   rating: number;
   review_count: number;
+  city?: string;
+  working_hours?: string;
+  current_status?: string;
+  latitude?: number;
+  longitude?: number;
   created_at?: Date;
 }
 
@@ -88,6 +95,11 @@ const WorkshopSchema = new Schema<IWorkshop>({
   is_verified: { type: Boolean, default: false },
   rating: { type: Number, default: 5.0 },
   review_count: { type: Number, default: 0 },
+  city: { type: String, default: "Pune" },
+  working_hours: { type: String, default: "9:00 AM - 7:00 PM" },
+  current_status: { type: String, default: "Open" },
+  latitude: { type: Number, default: 18.5204 },
+  longitude: { type: Number, default: 73.8567 },
   created_at: { type: Date, default: Date.now }
 });
 
@@ -133,11 +145,14 @@ export interface IComplaint {
   category?: string;
   location?: string;
   images?: string[];
+  latitude?: number;
+  longitude?: number;
+  address?: string;
   voice_url?: string;
   image_url?: string;
   video_url?: string;
   priority: "Low" | "Normal" | "High" | "Urgent";
-  status: "Pending" | "Accepted" | "In Progress" | "Completed" | "Cancelled";
+  status: "Pending" | "Accepted" | "Inspection" | "Repair Started" | "Waiting Parts" | "Completed" | "Delivered" | "Cancelled";
   workshop_id?: mongoose.Types.ObjectId;
   assigned_mechanic_id?: mongoose.Types.ObjectId;
   estimated_cost?: number;
@@ -157,11 +172,14 @@ const ComplaintSchema = new Schema<IComplaint>({
   category: { type: String },
   location: { type: String },
   images: [{ type: String }],
+  latitude: { type: Number },
+  longitude: { type: Number },
+  address: { type: String },
   voice_url: { type: String },
   image_url: { type: String },
   video_url: { type: String },
   priority: { type: String, enum: ["Low", "Normal", "High", "Urgent"], default: "Normal" },
-  status: { type: String, enum: ["Pending", "Accepted", "In Progress", "Completed", "Cancelled"], default: "Pending" },
+  status: { type: String, enum: ["Pending", "Accepted", "Inspection", "Repair Started", "Waiting Parts", "Completed", "Delivered", "Cancelled"], default: "Pending" },
   workshop_id: { type: Schema.Types.ObjectId, ref: "User" }, // Assigned Workshop Owner User
   assigned_mechanic_id: { type: Schema.Types.ObjectId, ref: "Mechanic" },
   estimated_cost: { type: Number },
@@ -298,3 +316,26 @@ OtpVerificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 export const OtpVerification: Model<IOtpVerification> = 
   mongoose.models.OtpVerification || 
   mongoose.model<IOtpVerification>("OtpVerification", OtpVerificationSchema);
+
+// --- Notification Schema ---
+export interface INotification {
+  user_id: string;
+  title: string;
+  message: string;
+  type: "info" | "success" | "warning" | "error";
+  read: boolean;
+  created_at?: Date;
+}
+
+const NotificationSchema = new Schema<INotification>({
+  user_id: { type: String, required: true, index: true },
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  type: { type: String, enum: ["info", "success", "warning", "error"], default: "info" },
+  read: { type: Boolean, default: false },
+  created_at: { type: Date, default: Date.now }
+});
+
+export const Notification: Model<INotification> = 
+  mongoose.models.Notification || 
+  mongoose.model<INotification>("Notification", NotificationSchema);

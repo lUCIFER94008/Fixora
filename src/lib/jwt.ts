@@ -30,3 +30,31 @@ export function verifyTokenString(token: string): any {
     return null;
   }
 }
+
+import { auth } from "@/auth";
+
+export async function verifyUser(req: Request): Promise<any> {
+  const tokenUser = verifyToken(req);
+  if (tokenUser) {
+    return tokenUser;
+  }
+
+  try {
+    const session = await auth();
+    if (session?.user) {
+      return {
+        _id: (session.user as any).id,
+        id: (session.user as any).id,
+        role: (session.user as any).role,
+        email: session.user.email,
+        name: session.user.name,
+        phone: (session.user as any).phone,
+        profile_image: session.user.image
+      };
+    }
+  } catch (err) {
+    console.error("verifyUser NextAuth error:", err);
+  }
+
+  return null;
+}
