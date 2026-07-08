@@ -134,12 +134,16 @@ export default function WorkshopDashboard() {
   }, [user]);
 
   // Websocket hook
-  const { isConnected, sendTyping, sendSeen } = useChat({
+  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom } = useChat({
     userId: user?._id,
     onMessageReceived: (message) => {
       const isActiveRoom = message.complaintId === chatRoomId;
       if (isActiveRoom) {
-        setChatMessages(prev => [...prev, message]);
+        setChatMessages(prev => {
+          // Prevent duplicates
+          if (prev.some(m => m._id === message._id)) return prev;
+          return [...prev, message];
+        });
         sendSeen(message.senderId || message.sender_id);
         if (message.ai_replies) {
           setSmartReplies(message.ai_replies);
@@ -156,8 +160,20 @@ export default function WorkshopDashboard() {
       if (chatRoomId && typingEvent.complaintId === chatRoomId) {
         setOwnerIsTyping(typingEvent.is_typing);
       }
+    },
+    onSeenReceived: () => {
+      setChatMessages(prev => prev.map(m => ({ ...m, isSeen: true })));
     }
   });
+
+  useEffect(() => {
+    if (chatRoomId) {
+      joinRoom(chatRoomId);
+      return () => {
+        leaveRoom(chatRoomId);
+      };
+    }
+  }, [chatRoomId, joinRoom, leaveRoom]);
 
   const fetchComplaintsQueue = async (wsId?: string) => {
     try {

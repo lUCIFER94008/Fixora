@@ -24,6 +24,19 @@ export function useChat({
   const reconnectCountRef = useRef<number>(0);
   const messageQueueRef = useRef<object[]>([]);
 
+  // Keep references to prevent stale closures
+  const onMessageReceivedRef = useRef(onMessageReceived);
+  const onStatusUpdateRef = useRef(onStatusUpdate);
+  const onTypingReceivedRef = useRef(onTypingReceived);
+  const onSeenReceivedRef = useRef(onSeenReceived);
+
+  useEffect(() => {
+    onMessageReceivedRef.current = onMessageReceived;
+    onStatusUpdateRef.current = onStatusUpdate;
+    onTypingReceivedRef.current = onTypingReceived;
+    onSeenReceivedRef.current = onSeenReceived;
+  });
+
   const isDev = process.env.NODE_ENV === "development";
 
   const log = useCallback((...args: any[]) => {
@@ -86,30 +99,30 @@ export function useChat({
       // ── Message Listeners ──
       socket.on("NEW_MESSAGE", (data: any) => {
         log("NEW_MESSAGE event received:", data);
-        if (onMessageReceived && data.message) {
-          onMessageReceived(data.message);
+        if (onMessageReceivedRef.current && data.message) {
+          onMessageReceivedRef.current(data.message);
         }
       });
 
       socket.on("receive-message", (data: any) => {
         log("receive-message event received:", data);
-        if (onMessageReceived) {
-          onMessageReceived(data);
+        if (onMessageReceivedRef.current) {
+          onMessageReceivedRef.current(data);
         }
       });
 
       // ── Typing Listeners ──
       socket.on("TYPING", (data: any) => {
         log("TYPING event received:", data);
-        if (onTypingReceived) {
-          onTypingReceived(data);
+        if (onTypingReceivedRef.current) {
+          onTypingReceivedRef.current(data);
         }
       });
 
       socket.on("typing", (data: any) => {
         log("typing event received:", data);
-        if (onTypingReceived) {
-          onTypingReceived({
+        if (onTypingReceivedRef.current) {
+          onTypingReceivedRef.current({
             senderId: data.senderId,
             is_typing: data.isTyping,
             complaintId: data.complaintId
@@ -119,8 +132,8 @@ export function useChat({
 
       socket.on("stop-typing", (data: any) => {
         log("stop-typing event received:", data);
-        if (onTypingReceived) {
-          onTypingReceived({
+        if (onTypingReceivedRef.current) {
+          onTypingReceivedRef.current({
             senderId: data.senderId,
             is_typing: false,
             complaintId: data.complaintId
@@ -131,15 +144,15 @@ export function useChat({
       // ── Seen/Read Listeners ──
       socket.on("SEEN", (data: any) => {
         log("SEEN event received:", data);
-        if (onSeenReceived) {
-          onSeenReceived(data);
+        if (onSeenReceivedRef.current) {
+          onSeenReceivedRef.current(data);
         }
       });
 
       socket.on("message-read", (data: any) => {
         log("message-read event received:", data);
-        if (onSeenReceived) {
-          onSeenReceived(data);
+        if (onSeenReceivedRef.current) {
+          onSeenReceivedRef.current(data);
         }
       });
 

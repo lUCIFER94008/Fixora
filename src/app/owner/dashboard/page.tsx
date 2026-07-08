@@ -163,12 +163,16 @@ export default function OwnerDashboard() {
   };
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const { isConnected, sendTyping, sendSeen } = useChat({
+  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom } = useChat({
     userId: user?._id,
     onMessageReceived: (message) => {
       const isActiveRoom = message.complaintId === chatRoomId;
       if (isActiveRoom) {
-        setChatMessages(prev => [...prev, message]);
+        setChatMessages(prev => {
+          // Prevent duplicates
+          if (prev.some(m => m._id === message._id)) return prev;
+          return [...prev, message];
+        });
         sendSeen(message.senderId || message.sender_id);
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
       } else {
@@ -182,8 +186,20 @@ export default function OwnerDashboard() {
       if (chatRoomId && typingEvent.complaintId === chatRoomId) {
         setWorkshopIsTyping(typingEvent.is_typing);
       }
+    },
+    onSeenReceived: () => {
+      setChatMessages(prev => prev.map(m => ({ ...m, isSeen: true })));
     }
   });
+
+  useEffect(() => {
+    if (chatRoomId) {
+      joinRoom(chatRoomId);
+      return () => {
+        leaveRoom(chatRoomId);
+      };
+    }
+  }, [chatRoomId, joinRoom, leaveRoom]);
 
 
   // Authenticate user session
