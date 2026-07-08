@@ -17,24 +17,49 @@ export default function ForgotPassword() {
     setStatus("loading");
     setMessage("");
 
+    let res: Response | null = null;
+
     try {
-      const res = await fetch("/api/auth/forgot-password", {
+      res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setStatus("success");
-        setMessage(data.message || "Reset link sent! Check your inbox.");
-      } else {
-        setStatus("error");
-        setMessage(data.detail || "Something went wrong. Please try again.");
-      }
-    } catch {
+    } catch (fetchErr: any) {
+      // Actual network-level failure (no connection, DNS error, etc.)
+      console.error("[ForgotPassword] Fetch failed:", fetchErr);
       setStatus("error");
-      setMessage("Network error. Please check your connection and try again.");
+      setMessage(
+        fetchErr?.message
+          ? `Connection failed: ${fetchErr.message}`
+          : "Unable to reach the server. Please check your internet connection."
+      );
+      return;
+    }
+
+    // Try to parse JSON — if the server returned HTML (500 error page), handle gracefully
+    let data: any = {};
+    try {
+      data = await res.json();
+    } catch (jsonErr: any) {
+      console.error("[ForgotPassword] JSON parse failed. Status:", res.status, jsonErr);
+      setStatus("error");
+      setMessage(
+        res.status === 500
+          ? "Server error. Please try again in a moment."
+          : res.status === 404
+          ? "API route not found. Please contact support."
+          : `Unexpected response (HTTP ${res.status}). Please try again.`
+      );
+      return;
+    }
+
+    if (res.ok && data.success) {
+      setStatus("success");
+      setMessage(data.message || "Reset link sent! Check your inbox.");
+    } else {
+      setStatus("error");
+      setMessage(data.detail || data.error || data.message || "Something went wrong. Please try again.");
     }
   };
 
@@ -72,7 +97,7 @@ export default function ForgotPassword() {
           </p>
         </div>
 
-        {/* Success state */}
+        {/* ── SUCCESS STATE ── */}
         {status === "success" ? (
           <div className="space-y-6">
             <div className="p-5 rounded-[16px] bg-[#7CFF7A]/10 border border-[#7CFF7A]/20 flex flex-col items-center gap-3 text-center">
@@ -83,7 +108,7 @@ export default function ForgotPassword() {
               </div>
             </div>
             <div className="p-4 rounded-[12px] bg-[#FFD400]/5 border border-[#FFD400]/15 text-xs text-[#9A9A9A] leading-relaxed">
-              <p>📧 Check your <strong className="text-white">spam or junk folder</strong> if you don&apos;t see the email within a few minutes.</p>
+              <p>📧 Check your <strong className="text-white">spam or junk folder</strong> if you don&apos;t see it within a few minutes.</p>
               <p className="mt-1">⏰ The link expires in <strong className="text-[#FFD400]">15 minutes</strong>.</p>
             </div>
             <button
@@ -100,13 +125,14 @@ export default function ForgotPassword() {
             </Link>
           </div>
         ) : (
+          // ── FORM STATE ──
           <form onSubmit={handleSubmit} className="space-y-5 text-left">
 
-            {/* Error message */}
+            {/* Error message — always shows real backend error */}
             {status === "error" && (
-              <div className="p-3.5 rounded-[12px] bg-[#FF5959]/10 border border-[#FF5959]/20 text-[#FF5959] text-xs flex items-center gap-2 font-mono">
-                <ShieldAlert size={14} className="flex-shrink-0" />
-                {message}
+              <div className="p-3.5 rounded-[12px] bg-[#FF5959]/10 border border-[#FF5959]/20 text-[#FF5959] text-xs flex items-start gap-2 font-mono">
+                <ShieldAlert size={14} className="flex-shrink-0 mt-0.5" />
+                <span>{message}</span>
               </div>
             )}
 
