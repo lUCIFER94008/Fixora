@@ -41,7 +41,7 @@ export async function GET(
     // Mark messages received by current user as read
     await Message.updateMany(
       { complaintId, receiverId: tokenUser._id, isSeen: false },
-      { $set: { isSeen: true } }
+      { $set: { isSeen: true, status: "Seen" } }
     );
 
     // Notify other sender via Socket that messages were seen

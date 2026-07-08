@@ -18,6 +18,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: "Message content or attachments required" }, { status: 400 });
     }
 
+    const activeRoomId = complaintId || "general";
+
     // 1. If it has a complaintId, verify access
     if (complaintId) {
       const complaint = await Complaint.findById(complaintId);
@@ -25,10 +27,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ detail: "Complaint not found" }, { status: 404 });
       }
 
-      // Check security access (Requirement 14)
+      // Check security access
       const isOwner = complaint.owner_id.toString() === tokenUser._id.toString();
-      // A workshop user might be authenticated by workshop_id or direct _id depending on schema. 
-      // Let's verify both potential link mechanisms
       const isWorkshop = 
         (complaint.workshop_id && complaint.workshop_id.toString() === tokenUser._id.toString()) ||
         (tokenUser.role === "workshop");
@@ -39,8 +39,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Save Message
+    // 2. Save Message with status "Sent" and populate roomId
     const msg = await Message.create({
+      roomId: activeRoomId,
       complaintId,
       senderId: tokenUser._id,
       receiverId,
@@ -48,15 +49,24 @@ export async function POST(req: Request) {
       message: message || "",
       attachments: attachments || [],
       messageType: messageType || "text",
-      isSeen: false
+      isSeen: false,
+      status: "Sent"
     });
 
     const populatedMsg = await Message.findById(msg._id);
 
     // 3. Socket broadcast if live
     const io = (global as any).io;
-    if (io && receiverId) {
-      io.to(receiverId.toString()).emit("NEW_MESSAGE", { message: populatedMsg });
+    if (io) {
+      // Broadcast to room channel
+      io.to(activeRoomId).emit("receive-message", populatedMsg);
+      io.to(activeRoomId).emit("NEW_MESSAGE", { message: populatedMsg });
+
+      // Direct fallback notifications
+      if (receiverId) {
+        io.to(receiverId.toString()).emit("NEW_MESSAGE", { message: populatedMsg });
+        io.to(receiverId.toString()).emit("receive-message", populatedMsg);
+      }
     }
 
     // 4. Offline Notification triggers

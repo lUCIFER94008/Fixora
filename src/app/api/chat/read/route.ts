@@ -19,7 +19,7 @@ export async function PATCH(req: Request) {
     // Mark messages received by current user as read in this room
     await Message.updateMany(
       { complaintId, receiverId: tokenUser._id, isSeen: false },
-      { $set: { isSeen: true } }
+      { $set: { isSeen: true, status: "Seen" } }
     );
 
     const complaint = await Complaint.findById(complaintId);

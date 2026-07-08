@@ -48,7 +48,6 @@ export function useChat({
       return;
     }
 
-    // Standard Next.js Socket.IO bootstrap sequence
     try {
       log("Bootstrapping Next.js Socket.IO server at /api/socket...");
       await fetch("/api/socket").catch(() => null);
@@ -62,7 +61,9 @@ export function useChat({
       const socket = ClientIO(window.location.origin, {
         path: "/api/socket",
         query: { userId },
-        reconnection: false, // Handle reconnection manually with backoff
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
         timeout: 5000
       });
       socketRef.current = socket;
@@ -82,6 +83,7 @@ export function useChat({
         }
       });
 
+      // ── Message Listeners ──
       socket.on("NEW_MESSAGE", (data: any) => {
         log("NEW_MESSAGE event received:", data);
         if (onMessageReceived && data.message) {
@@ -89,6 +91,14 @@ export function useChat({
         }
       });
 
+      socket.on("receive-message", (data: any) => {
+        log("receive-message event received:", data);
+        if (onMessageReceived) {
+          onMessageReceived(data);
+        }
+      });
+
+      // ── Typing Listeners ──
       socket.on("TYPING", (data: any) => {
         log("TYPING event received:", data);
         if (onTypingReceived) {
@@ -96,6 +106,29 @@ export function useChat({
         }
       });
 
+      socket.on("typing", (data: any) => {
+        log("typing event received:", data);
+        if (onTypingReceived) {
+          onTypingReceived({
+            senderId: data.senderId,
+            is_typing: data.isTyping,
+            complaintId: data.complaintId
+          });
+        }
+      });
+
+      socket.on("stop-typing", (data: any) => {
+        log("stop-typing event received:", data);
+        if (onTypingReceived) {
+          onTypingReceived({
+            senderId: data.senderId,
+            is_typing: false,
+            complaintId: data.complaintId
+          });
+        }
+      });
+
+      // ── Seen/Read Listeners ──
       socket.on("SEEN", (data: any) => {
         log("SEEN event received:", data);
         if (onSeenReceived) {
@@ -103,24 +136,25 @@ export function useChat({
         }
       });
 
-      socket.on("connect_error", (err) => {
-        logError("Connect error:", err);
-        socket.close();
+      socket.on("message-read", (data: any) => {
+        log("message-read event received:", data);
+        if (onSeenReceived) {
+          onSeenReceived(data);
+        }
       });
 
-      socket.on("disconnect", () => {
-        log("Socket.IO connection disconnected.");
+      socket.on("connect_error", (err) => {
+        logError("Connect error:", err);
+      });
+
+      socket.on("disconnect", (reason) => {
+        log("Socket.IO connection disconnected. Reason:", reason);
         setStatus("Disconnected");
 
-        // Calculate backoff time: min(1000 * 2^reconnectCount, 30000)
-        const delay = Math.min(1000 * Math.pow(2, reconnectCountRef.current), 30000);
-        log(`Scheduling reconnect attempt in ${delay}ms...`);
-        reconnectCountRef.current += 1;
-
-        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = setTimeout(() => {
+        if (reason === "io server disconnect") {
+          // the server has forcefully disconnected the socket, need to reconnect manually
           connect();
-        }, delay);
+        }
       });
 
     } catch (err) {
@@ -136,13 +170,14 @@ export function useChat({
 
     return () => {
       if (socketRef.current) {
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
         socketRef.current.off("connect");
         socketRef.current.off("NEW_MESSAGE");
+        socketRef.current.off("receive-message");
         socketRef.current.off("TYPING");
+        socketRef.current.off("typing");
+        socketRef.current.off("stop-typing");
         socketRef.current.off("SEEN");
+        socketRef.current.off("message-read");
         socketRef.current.off("connect_error");
         socketRef.current.off("disconnect");
         socketRef.current.close();
@@ -164,8 +199,35 @@ export function useChat({
     }
   }, [log, logError]);
 
+  const joinRoom = useCallback(
+    (roomId: string) => {
+      sendEvent({
+        type: "join-room",
+        roomId,
+      });
+    },
+    [sendEvent]
+  );
+
+  const leaveRoom = useCallback(
+    (roomId: string) => {
+      sendEvent({
+        type: "leave-room",
+        roomId,
+      });
+    },
+    [sendEvent]
+  );
+
   const sendTyping = useCallback(
     (receiverId: string, isTyping: boolean, complaintId?: string) => {
+      sendEvent({
+        type: isTyping ? "typing" : "stop-typing",
+        receiverId,
+        complaintId,
+        isTyping,
+      });
+      // Fallback old structure compatibility
       sendEvent({
         type: "TYPING",
         receiver_id: receiverId,
@@ -179,6 +241,11 @@ export function useChat({
   const sendSeen = useCallback(
     (receiverId: string, complaintId?: string) => {
       sendEvent({
+        type: "message-read",
+        receiverId,
+        complaintId,
+      });
+      sendEvent({
         type: "SEEN",
         receiver_id: receiverId,
         complaint_id: complaintId,
@@ -190,6 +257,8 @@ export function useChat({
   return {
     isConnected: status === "Connected",
     connectionStatus: status,
+    joinRoom,
+    leaveRoom,
     sendTyping,
     sendSeen,
   };

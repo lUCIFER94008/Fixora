@@ -1,5 +1,5 @@
 import { Server as NetServer } from "http";
-import { NextApiRequest, NextApiResponse } from "next";
+import { NextApiRequest } from "next";
 import { Server as SocketIOServer } from "socket.io";
 
 export const config = {
@@ -20,6 +20,10 @@ const socketHandler = (req: NextApiRequest, res: any) => {
   const io = new SocketIOServer(httpServer, {
     path: "/api/socket",
     addTrailingSlash: false,
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
   });
 
   res.socket.server.io = io;
@@ -29,17 +33,105 @@ const socketHandler = (req: NextApiRequest, res: any) => {
     const userId = socket.handshake.query.userId;
     console.log(`Socket client connected: ${socket.id} (user: ${userId})`);
 
-    // Join room for specific user messages
+    // Standard Room logic
     if (userId) {
       socket.join(userId.toString());
     }
 
-    socket.on("message", (data) => {
-      // Broadcast to specific recipient room
-      if (data.receiver_id) {
-        io.to(data.receiver_id).emit("NEW_MESSAGE", {
-          message: data
+    // ── 1. JOIN ROOM & LEAVE ROOM (per Complaint Room) ──
+    socket.on("join-room", (data) => {
+      const roomId = data.roomId || data.complaintId;
+      if (roomId) {
+        socket.join(roomId);
+        console.log(`Socket ${socket.id} (user: ${userId}) joined room: ${roomId}`);
+      }
+    });
+
+    socket.on("leave-room", (data) => {
+      const roomId = data.roomId || data.complaintId;
+      if (roomId) {
+        socket.leave(roomId);
+        console.log(`Socket ${socket.id} (user: ${userId}) left room: ${roomId}`);
+      }
+    });
+
+    // ── 2. SEND MESSAGE ──
+    socket.on("send-message", (data) => {
+      // Broadcast to room
+      const roomId = data.roomId || data.complaintId;
+      if (roomId) {
+        io.to(roomId).emit("receive-message", data);
+        io.to(roomId).emit("NEW_MESSAGE", { message: data });
+      }
+      // Direct user fallbacks
+      if (data.receiverId || data.receiver_id) {
+        const receiver = (data.receiverId || data.receiver_id).toString();
+        io.to(receiver).emit("NEW_MESSAGE", { message: data });
+        io.to(receiver).emit("receive-message", data);
+      }
+    });
+
+    // ── 3. TYPING & STOP-TYPING ──
+    socket.on("typing", (data) => {
+      const roomId = data.roomId || data.complaintId;
+      const target = roomId || data.receiverId || data.receiver_id;
+      if (target) {
+        socket.to(target).emit("typing", {
+          senderId: userId,
+          complaintId: data.complaintId || roomId,
+          isTyping: true
         });
+        socket.to(target).emit("TYPING", {
+          sender_id: userId,
+          senderId: userId,
+          is_typing: true,
+          complaint_id: data.complaintId || roomId,
+          complaintId: data.complaintId || roomId
+        });
+      }
+    });
+
+    socket.on("stop-typing", (data) => {
+      const roomId = data.roomId || data.complaintId;
+      const target = roomId || data.receiverId || data.receiver_id;
+      if (target) {
+        socket.to(target).emit("stop-typing", {
+          senderId: userId,
+          complaintId: data.complaintId || roomId,
+          isTyping: false
+        });
+        socket.to(target).emit("TYPING", {
+          sender_id: userId,
+          senderId: userId,
+          is_typing: false,
+          complaint_id: data.complaintId || roomId,
+          complaintId: data.complaintId || roomId
+        });
+      }
+    });
+
+    // ── 4. MESSAGE READ / SEEN ──
+    socket.on("message-read", (data) => {
+      const roomId = data.roomId || data.complaintId;
+      const target = roomId || data.receiverId || data.receiver_id;
+      if (target) {
+        socket.to(target).emit("message-read", data);
+        socket.to(target).emit("SEEN", {
+          sender_id: userId,
+          complaint_id: data.complaintId || roomId,
+          complaintId: data.complaintId || roomId
+        });
+      }
+    });
+
+    // Backward compatible handlers
+    socket.on("message", (data) => {
+      if (data.receiver_id) {
+        io.to(data.receiver_id).emit("NEW_MESSAGE", { message: data });
+      }
+      const roomId = data.complaintId || data.complaint_id;
+      if (roomId) {
+        io.to(roomId).emit("NEW_MESSAGE", { message: data });
       }
     });
 
@@ -55,12 +147,12 @@ const socketHandler = (req: NextApiRequest, res: any) => {
       }
     });
 
-
     socket.on("SEEN", (data) => {
       if (data.receiver_id) {
         io.to(data.receiver_id).emit("SEEN", {
           sender_id: userId,
-          complaint_id: data.complaint_id
+          complaint_id: data.complaint_id,
+          complaintId: data.complaint_id
         });
       }
     });

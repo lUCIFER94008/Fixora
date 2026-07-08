@@ -350,19 +350,22 @@ export const Notification: Model<INotification> =
 
 // --- Message Schema (Real-time Messaging System) ---
 export interface IMessage {
+  roomId?: string;
   complaintId?: string;
   senderId?: string;
   receiverId?: string;
   senderRole: "owner" | "workshop" | "admin" | "ai";
   message: string;
   attachments?: string[];
-  messageType: "text" | "image" | "pdf" | "video" | "document";
-  isSeen: boolean;
+  messageType?: "text" | "image" | "pdf" | "video" | "document";
+  isSeen?: boolean;
+  status?: "Sending" | "Sent" | "Delivered" | "Seen";
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 const MessageSchema = new Schema<IMessage>({
+  roomId: { type: String, index: true },
   complaintId: { type: String, index: true },
   senderId: { type: String, index: true },
   receiverId: { type: String, index: true },
@@ -370,7 +373,8 @@ const MessageSchema = new Schema<IMessage>({
   message: { type: String, required: true },
   attachments: [{ type: String }],
   messageType: { type: String, enum: ["text", "image", "pdf", "video", "document"], default: "text" },
-  isSeen: { type: Boolean, default: false }
+  isSeen: { type: Boolean, default: false },
+  status: { type: String, enum: ["Sending", "Sent", "Delivered", "Seen"], default: "Sent" }
 }, {
   timestamps: true
 });

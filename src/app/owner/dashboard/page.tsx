@@ -26,7 +26,9 @@ import {
   ArrowRight,
   AlertTriangle,
   MapPin,
-  Briefcase
+  Briefcase,
+  Menu,
+  X
 } from "lucide-react";
 import api from "@/services/api";
 import { useChat } from "@/hooks/useChat";
@@ -88,6 +90,7 @@ export default function OwnerDashboard() {
   const [chatRoomId, setChatRoomId] = useState<string | null>(null);
   const [chatRoomReadOnly, setChatRoomReadOnly] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { isConnected, sendTyping, sendSeen } = useChat({
@@ -414,12 +417,61 @@ export default function OwnerDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white flex flex-col md:flex-row overflow-hidden font-sans">
+    <div className="min-h-screen bg-[#080808] text-white flex flex-col md:flex-row overflow-x-hidden font-sans">
       
+      {/* Mobile Header Bar */}
+      <header className="md:hidden flex items-center justify-between p-4 bg-[#111111] border-b border-[rgba(255,255,255,0.06)] z-30 shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-1 rounded-md text-[#9A9A9A] hover:text-white"
+            aria-label="Toggle Menu"
+          >
+            <Menu size={20} />
+          </button>
+          <div className="flex items-center gap-2">
+            <Image 
+              src="https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png" 
+              alt="FIXORA" 
+              width={20} 
+              height={20} 
+              className="rounded-full"
+            />
+            <span className="font-bold text-sm tracking-tight text-white">FIXORA</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {activeChatWorkshop && (
+            <button onClick={() => { setActiveTab("chat"); setMobileMenuOpen(false); }} className="relative text-[#9A9A9A] hover:text-white">
+              <MessageSquare size={16} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#FFD400]" />
+              )}
+            </button>
+          )}
+          <div className="w-6 h-6 rounded-full overflow-hidden bg-[#151515] border border-white/10 flex items-center justify-center shrink-0">
+            {user?.profile_image ? (
+              <Image src={user.profile_image} alt="User" width={24} height={24} className="object-cover" />
+            ) : (
+              <User size={10} className="text-[#9A9A9A]" />
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Drawer Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/80 z-40 transition-opacity" 
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Collapsible Sidebar */}
-      <aside className={`bg-[#111111] border-r border-[rgba(255,255,255,0.06)] flex flex-col justify-between shrink-0 transition-all duration-300 ${
-        sidebarCollapsed ? "w-full md:w-20" : "w-full md:w-64"
-      }`}>
+      <aside className={`bg-[#111111] border-r border-[rgba(255,255,255,0.06)] flex flex-col justify-between shrink-0 transition-all duration-300 z-50
+        fixed inset-y-0 left-0 w-64 transform md:translate-x-0 md:relative md:flex md:w-64 ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        } ${sidebarCollapsed ? "md:w-20" : "md:w-64"}`}>
         <div>
           {/* Logo */}
           <div className="p-6 border-b border-[rgba(255,255,255,0.06)] flex items-center justify-between">
@@ -431,7 +483,7 @@ export default function OwnerDashboard() {
                 height={25} 
                 className="rounded-full"
               />
-              {!sidebarCollapsed && <span className="font-bold text-base text-white tracking-tight">FIXORA</span>}
+              {(!sidebarCollapsed || mobileMenuOpen) && <span className="font-bold text-base text-white tracking-tight">FIXORA</span>}
             </div>
             <button 
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -439,7 +491,14 @@ export default function OwnerDashboard() {
             >
               {sidebarCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
             </button>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="md:hidden p-1 rounded-md text-[#9A9A9A] hover:text-white"
+            >
+              <X size={16} />
+            </button>
           </div>
+
 
           {/* User badge */}
           <div className={`p-4 mx-4 my-4 rounded-[18px] bg-[#151515] border border-[rgba(255,255,255,0.04)] flex items-center gap-3 ${
@@ -474,13 +533,13 @@ export default function OwnerDashboard() {
               <div key={tab.id} className="relative">
                 {activeTab === tab.id && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
                 <button 
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => { setActiveTab(tab.id); setMobileMenuOpen(false); }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
                     activeTab === tab.id ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                  } ${sidebarCollapsed ? "justify-center" : ""}`}
+                  } ${sidebarCollapsed && !mobileMenuOpen ? "justify-center" : ""}`}
                 >
                   {tab.icon}
-                  {!sidebarCollapsed && <span>{tab.label}</span>}
+                  {(!sidebarCollapsed || mobileMenuOpen) && <span>{tab.label}</span>}
                 </button>
               </div>
             ))}
@@ -488,13 +547,18 @@ export default function OwnerDashboard() {
               <div className="relative">
                 {activeTab === "chat" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
                 <button 
-                  onClick={() => setActiveTab("chat")}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left ${
+                  onClick={() => { setActiveTab("chat"); setMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left relative ${
                     activeTab === "chat" ? "bg-[#151515] border border-[rgba(255,255,255,0.04)] text-white" : "text-[#9A9A9A] hover:text-white"
-                  } ${sidebarCollapsed ? "justify-center" : ""}`}
+                  } ${sidebarCollapsed && !mobileMenuOpen ? "justify-center" : ""}`}
                 >
                   <MessageSquare size={14} />
-                  {!sidebarCollapsed && <span>Live Chat</span>}
+                  {(!sidebarCollapsed || mobileMenuOpen) && <span>Live Chat</span>}
+                  {unreadCount > 0 && (
+                    <span className="absolute right-4 top-3 px-1.5 py-0.5 text-[8px] font-bold bg-[#FFD400] text-black rounded-full">
+                      {unreadCount}
+                    </span>
+                  )}
                 </button>
               </div>
             )}
