@@ -28,7 +28,8 @@ import {
   MapPin,
   Briefcase,
   Menu,
-  X
+  X,
+  ArrowLeft
 } from "lucide-react";
 import api from "@/services/api";
 import { useChat } from "@/hooks/useChat";
@@ -91,6 +92,7 @@ export default function OwnerDashboard() {
   const [chatRoomReadOnly, setChatRoomReadOnly] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { isConnected, sendTyping, sendSeen } = useChat({
@@ -1278,156 +1280,185 @@ export default function OwnerDashboard() {
 
         {/* TAB: REAL-TIME CHAT */}
         {activeTab === "chat" && activeChatWorkshop && (
-          <div className="space-y-6 text-left">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-extrabold tracking-tight">Channel: {activeChatWorkshop.name}</h1>
-                <p className="text-xs text-[#9A9A9A] mt-1">
-                  {chatRoomReadOnly
-                    ? "⚠️ This complaint is closed. Chat is read-only."
-                    : "Discuss repairs in real-time. Typing indicator enabled."}
-                </p>
+          <div className="text-left relative flex flex-col h-[calc(100vh-140px)] md:h-[600px] -m-6 md:m-0 overflow-hidden bg-[#080808]">
+            
+            {/* Mobile-optimized Header */}
+            <div className="flex items-center justify-between bg-[#111111] p-3 md:p-4 border-b border-[rgba(255,255,255,0.06)] shrink-0 z-10">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setActiveTab("workshops")}
+                  className="md:hidden p-1 text-[#9A9A9A] hover:text-white"
+                  aria-label="Back to Workshops"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <div>
+                  <h1 className="text-sm md:text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                    {activeChatWorkshop.name}
+                    <span className="text-[10px] hidden md:inline-block font-normal text-[#9A9A9A]">
+                      ({chatRoomReadOnly ? "Closed" : "Active"})
+                    </span>
+                  </h1>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-[#7CFF7A] animate-pulse" : "bg-[#FF5959]"}`} />
+                    <span className="text-[9px] text-[#9A9A9A] font-mono">
+                      {isConnected ? "🟢 Online" : "🔴 Offline"}
+                    </span>
+                    {workshopIsTyping && (
+                      <span className="text-[#FFD400] text-[9px] ml-2 animate-pulse">typing...</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className={`flex items-center gap-2 text-[10px] px-3 py-1.5 rounded-full border ${
-                isConnected ? "bg-[#7CFF7A]/10 border-[#7CFF7A]/30 text-[#7CFF7A]" : "bg-white/5 border-white/10 text-[#9A9A9A]"
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-[#7CFF7A] animate-pulse" : "bg-[#9A9A9A]"}`} />
-                {isConnected ? "Live" : "Offline"}
-              </div>
+              <button 
+                onClick={() => setDetailsOpen(true)}
+                className="px-3 py-1.5 bg-[#FFD400]/10 hover:bg-[#FFD400]/20 border border-[#FFD400]/20 text-[#FFD400] rounded-xl text-[10px] font-bold uppercase transition-all"
+              >
+                View Details
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" style={{ height: "500px" }}>
-              <div className="lg:col-span-8 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] overflow-hidden flex flex-col h-full shadow-md">
-                {/* Chat header */}
-                <div className="p-4 bg-[#111111] border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between text-[10px] text-[#9A9A9A] font-bold">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#FF5959]/90" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#FFD400]/90" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#7CFF7A]/90" />
-                    <span className="font-mono text-[#9A9A9A]">fixora-chat-channel</span>
+            {/* Chat Body & Input Layout */}
+            <div className="flex-1 flex flex-col relative min-h-0 bg-[#0c0c0c]">
+              
+              {/* Messages area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 pb-16 md:pb-4">
+                {chatMessages.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-[#9A9A9A] gap-2 py-8">
+                    <MessageSquare size={28} className="opacity-20" />
+                    <p className="text-xs">No messages yet. Start the conversation below.</p>
                   </div>
-                  {workshopIsTyping && <span className="text-[#FFD400] animate-pulse">Technician is typing...</span>}
-                </div>
-
-                {/* Messages */}
-                <div className="flex-1 p-5 overflow-y-auto space-y-4 text-xs">
-                  {chatMessages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-[#9A9A9A] gap-3">
-                      <MessageSquare size={32} className="opacity-20" />
-                      <p className="text-xs">No messages yet. Start the conversation below.</p>
-                    </div>
-                  )}
-                  {chatMessages.map((msg, i) => {
-                    const isMe = (msg.senderId || msg.sender_id) === user?._id;
-                    const msgText = msg.message || msg.content || "";
-                    const msgTime = msg.createdAt || msg.created_at || msg.timestamp;
-                    return (
-                      <div key={msg._id || i} className={`flex flex-col gap-0.5 ${isMe ? "items-end" : "items-start"}`}>
-                        <div className={`max-w-[75%] p-3.5 rounded-[18px] leading-relaxed whitespace-pre-wrap ${
-                          isMe
-                            ? "bg-[#FFD400] text-black font-semibold rounded-tr-none"
-                            : "bg-[#111111] border border-[rgba(255,255,255,0.04)] text-white rounded-tl-none"
-                        }`}>
-                          {msgText}
-                        </div>
-                        <div className={`flex items-center gap-1 text-[9px] text-[#9A9A9A]/60 font-mono px-1 ${isMe ? "flex-row-reverse" : ""}`}>
-                          <span>{formatMsgTime(msgTime)}</span>
-                          {isMe && (
-                            <span className={`ml-1 ${msg.isSeen ? "text-[#7CFF7A]" : "text-[#9A9A9A]"}`}>
-                              {msg.isSeen ? "✓✓" : "✓"}
-                            </span>
-                          )}
-                        </div>
+                )}
+                {chatMessages.map((msg, i) => {
+                  const isMe = (msg.senderId || msg.sender_id) === user?._id;
+                  const msgText = msg.message || msg.content || "";
+                  const msgTime = msg.createdAt || msg.created_at || msg.timestamp;
+                  return (
+                    <div key={msg._id || i} className={`flex flex-col gap-0.5 ${isMe ? "items-end" : "items-start"}`}>
+                      <div className={`max-w-[80%] p-3 rounded-[18px] leading-relaxed whitespace-pre-wrap text-xs ${
+                        isMe
+                          ? "bg-[#FFD400] text-black font-semibold rounded-tr-none"
+                          : "bg-[#151515] border border-[rgba(255,255,255,0.06)] text-white rounded-tl-none"
+                      }`}>
+                        {msgText}
                       </div>
-                    );
-                  })}
-                  {workshopIsTyping && (
-                    <div className="flex items-center gap-2">
-                      <div className="bg-[#111111] border border-white/5 px-4 py-3 rounded-[18px] rounded-tl-none flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce" />
-                        <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce [animation-delay:0.2s]" />
-                        <span className="w-1.5 h-1.5 bg-[#FFD400] rounded-full animate-bounce [animation-delay:0.4s]" />
+                      <div className={`flex items-center gap-1 text-[8px] text-[#9A9A9A]/60 font-mono px-1 ${isMe ? "flex-row-reverse" : ""}`}>
+                        <span>{formatMsgTime(msgTime)}</span>
+                        {isMe && (
+                          <span className={`ml-1 ${msg.isSeen ? "text-[#7CFF7A]" : "text-[#9A9A9A]"}`}>
+                            {msg.isSeen ? "✓✓" : "✓"}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
+                  );
+                })}
+                <div ref={chatEndRef} />
+              </div>
 
-                {/* Input */}
+              {/* Message Input Sticky Bottom */}
+              <div className="absolute md:relative bottom-0 inset-x-0 bg-[#111111] p-3 border-t border-[rgba(255,255,255,0.04)] z-10 shrink-0">
                 {!chatRoomReadOnly ? (
-                  <div className="p-4 bg-[#111111] border-t border-[rgba(255,255,255,0.04)]">
-                    <div className="flex gap-2 items-end">
-                      <textarea
-                        value={typedMessage}
-                        onChange={(e) => { setTypedMessage(e.target.value); handleTypingEvent(); }}
-                        onKeyDown={handleChatKeyDown}
-                        placeholder="Enter message... (Enter to send, Shift+Enter for newline)"
-                        rows={2}
-                        className="flex-1 bg-[#080808] border border-[#2A2A2A] rounded-[12px] px-4 py-3 text-xs text-white focus:outline-none focus:border-[#FFD400] resize-none leading-relaxed"
-                      />
-                      <button
-                        onClick={handleSendChatMessage}
-                        disabled={!typedMessage.trim()}
-                        aria-label="Send message"
-                        className="p-3 bg-[#FFD400] text-black hover:bg-[#FFC300] disabled:opacity-50 rounded-[12px] transition-colors flex-shrink-0"
-                      >
-                        <Send size={14} />
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-2 max-w-full">
+                    <button 
+                      type="button" 
+                      onClick={() => alert("File attachment interface active.")}
+                      className="p-2.5 text-[#9A9A9A] hover:text-white rounded-full bg-[#151515] hover:bg-white/5 transition-colors shrink-0"
+                      aria-label="Attach File"
+                    >
+                      <Plus size={16} />
+                    </button>
+                    <textarea
+                      value={typedMessage}
+                      onChange={(e) => { setTypedMessage(e.target.value); handleTypingEvent(); }}
+                      onKeyDown={handleChatKeyDown}
+                      placeholder="Type a message..."
+                      rows={1}
+                      className="flex-1 bg-[#080808] border border-[#2a2a2a] rounded-full px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFD400] resize-none leading-normal placeholder-[#9A9A9A] min-h-[36px] max-h-[100px]"
+                    />
+                    <button
+                      onClick={handleSendChatMessage}
+                      disabled={!typedMessage.trim()}
+                      aria-label="Send message"
+                      className="p-2.5 bg-[#FFD400] text-black hover:bg-[#FFC300] disabled:opacity-40 disabled:scale-100 rounded-full transition-all shrink-0 flex items-center justify-center hover:scale-105"
+                    >
+                      <Send size={14} />
+                    </button>
                   </div>
                 ) : (
-                  <div className="p-4 bg-[#111111] border-t border-[rgba(255,255,255,0.04)] text-center text-[10px] text-[#9A9A9A]">
-                    🔒 Chat closed — complaint is {activeComplaint?.status || "resolved"}
+                  <div className="text-center text-[10px] text-[#9A9A9A] py-1 font-mono uppercase tracking-wider">
+                    🔒 Read-Only (Complaint Resolved)
                   </div>
                 )}
               </div>
 
-              {/* Sidebar: complaint context */}
-              <div className="lg:col-span-4 space-y-4">
-                <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] text-xs">
-                  <h3 className="font-bold text-white uppercase block mb-3 border-b border-white/5 pb-2">Active Complaint Context</h3>
-                  {activeComplaint ? (
-                    <div className="space-y-3">
-                      <div>
-                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Title</span>
-                        <span className="font-semibold text-white truncate block uppercase">{activeComplaint.title}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Status</span>
-                        <span className="font-bold text-[#FFD400] uppercase">{activeComplaint.status}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Room ID</span>
-                        <span className="font-mono text-[9px] text-white/40 truncate block">{chatRoomId || "—"}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-[#9A9A9A] text-[10px]">No active complaints references.</p>
-                  )}
-                </div>
+            </div>
 
-                {/* Workshop info */}
-                <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] text-xs space-y-3">
-                  <h3 className="font-bold text-white uppercase border-b border-white/5 pb-2">Workshop</h3>
+            {/* Bottom Sheet Details Drawer overlay */}
+            {detailsOpen && (
+              <div 
+                className="fixed inset-0 bg-black/80 z-40 transition-opacity"
+                onClick={() => setDetailsOpen(false)}
+              />
+            )}
+
+            {/* Bottom Sheet details panel */}
+            <div className={`fixed inset-x-0 bottom-0 bg-[#111111] border-t border-[rgba(255,255,255,0.08)] rounded-t-[28px] p-6 pb-8 z-50 transition-transform duration-300 transform ${
+              detailsOpen ? "translate-y-0" : "translate-y-full"
+            }`}>
+              <div className="w-12 h-1.5 bg-[#2a2a2a] rounded-full mx-auto mb-6" />
+              
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/5">
+                <h3 className="font-extrabold text-sm text-white uppercase tracking-wider">Repair Specifications</h3>
+                <button 
+                  onClick={() => setDetailsOpen(false)}
+                  className="p-1 rounded-full bg-white/5 text-[#9A9A9A] hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto text-xs pr-2">
+                {activeComplaint && (
+                  <div className="space-y-3 p-4 rounded-2xl bg-[#151515] border border-white/5">
+                    <h4 className="font-bold text-[#FFD400] uppercase tracking-wide text-[10px]">Complaint Information</h4>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] block uppercase">Title</span>
+                      <p className="font-semibold text-white uppercase">{activeComplaint.title}</p>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] block uppercase">Status</span>
+                      <span className="font-bold text-[#FFD400] uppercase">{activeComplaint.status}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] block uppercase font-bold text-[#FF5959]">Severity</span>
+                      <span className="text-[#FF5959] font-bold">{activeComplaint.ai_diagnostics?.severity || "MEDIUM"}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3 p-4 rounded-2xl bg-[#151515] border border-white/5">
+                  <h4 className="font-bold text-[#FFD400] uppercase tracking-wide text-[10px]">Workshop Reference</h4>
                   <div>
-                    <span className="text-[9px] text-[#9A9A9A] uppercase">Name</span>
+                    <span className="text-[9px] text-[#9A9A9A] uppercase block">Name</span>
                     <p className="font-semibold text-white">{activeChatWorkshop.name}</p>
                   </div>
                   {activeChatWorkshop.address && (
                     <div>
-                      <span className="text-[9px] text-[#9A9A9A] uppercase">Address</span>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Address</span>
                       <p className="text-white/80">{activeChatWorkshop.address}</p>
                     </div>
                   )}
                   {activeChatWorkshop.phone && (
                     <div>
-                      <span className="text-[9px] text-[#9A9A9A] uppercase">Phone</span>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Phone</span>
                       <p className="text-white/80">{activeChatWorkshop.phone}</p>
                     </div>
                   )}
                 </div>
               </div>
             </div>
+
           </div>
         )}
 

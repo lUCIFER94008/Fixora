@@ -4,10 +4,30 @@ import { connectToDatabase } from "@/lib/db";
 import { User } from "@/models/Schemas";
 import { sendPasswordResetEmail } from "@/lib/email";
 
-export async function POST(req: Request) {
-  const startTime = Date.now();
+// Verify required env variables at runtime
+function verifyEnv() {
+  const required = [
+    "NEXTAUTH_URL",
+    "MONGODB_URI",
+    "EMAIL_SERVER_USER",
+    "EMAIL_SERVER_PASSWORD",
+    "EMAIL_FROM"
+  ];
+  for (const key of required) {
+    if (!process.env[key]) {
+      throw new Error(`Critical environment variable missing: ${key}`);
+    }
+  }
+}
 
-  // ── 1. Parse body ────────────────────────────────
+export async function POST(req: Request) {
+  try {
+    verifyEnv();
+  } catch (envErr: any) {
+    console.error("[FORGOT-PASSWORD] Env check failed:", envErr.message);
+    return NextResponse.json({ detail: envErr.message }, { status: 500 });
+  }
+
   let body: any = {};
   try {
     body = await req.json();
@@ -16,127 +36,78 @@ export async function POST(req: Request) {
   }
 
   const { email } = body;
-  console.log(`[FORGOT-PASSWORD] Request received for: ${email}`);
-
   if (!email?.trim()) {
     return NextResponse.json({ detail: "Email address is required." }, { status: 400 });
   }
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  // ── 2. Connect to MongoDB ────────────────────────
+  // 1. Connect to MongoDB
   try {
     await connectToDatabase();
-    console.log("[FORGOT-PASSWORD] MongoDB connected.");
   } catch (dbErr: any) {
-    console.error("[FORGOT-PASSWORD] MongoDB connection failed:", dbErr.message);
-    return NextResponse.json(
-      { detail: "Database connection failed. Please try again in a moment." },
-      { status: 503 }
-    );
+    console.error("[FORGOT-PASSWORD] DB connection failed:", dbErr.message);
+    return NextResponse.json({ detail: "Database connection failed." }, { status: 503 });
   }
 
-  // ── 3. Look up user ──────────────────────────────
+  // 2. Find user
   let user: any = null;
   try {
-    user = await User.findOne({ email: normalizedEmail }).select("_id name email");
-    console.log(`[FORGOT-PASSWORD] User lookup: ${user ? "found" : "not found"}`);
-  } catch (lookupErr: any) {
-    console.error("[FORGOT-PASSWORD] User lookup error:", lookupErr.message);
-    return NextResponse.json(
-      { detail: "Database query failed. Please try again." },
-      { status: 500 }
-    );
+    user = await User.findOne({ email: normalizedEmail });
+  } catch (err: any) {
+    return NextResponse.json({ detail: "Database query failed." }, { status: 500 });
   }
 
-  // Security: Never reveal whether email exists (timing-safe)
+  // Anti-enumeration security: always return success
   if (!user) {
-    await new Promise((r) => setTimeout(r, 800));
-    console.log("[FORGOT-PASSWORD] Email not found — returning generic success (anti-enumeration).");
+    await new Promise((r) => setTimeout(r, 600));
     return NextResponse.json({
       success: true,
-      message: "If an account with that email exists, a reset link has been sent. Please check your inbox."
+      message: "Reset link sent successfully."
     });
   }
 
-  // ── 4. Generate reset token ──────────────────────
-  let resetToken: string;
-  let resetTokenExpiry: Date;
-  try {
-    resetToken = crypto.randomBytes(32).toString("hex");
-    resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-    console.log("[FORGOT-PASSWORD] Reset token generated.");
-  } catch (cryptoErr: any) {
-    console.error("[FORGOT-PASSWORD] Token generation failed:", cryptoErr.message);
-    return NextResponse.json(
-      { detail: "Failed to generate reset token. Please try again." },
-      { status: 500 }
-    );
-  }
+  // 3. Generate raw token and hash it (SHA-256)
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const resetPasswordExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes expiry
 
-  // ── 5. Store token in MongoDB ────────────────────
+  // 4. Save to user document
   try {
     await User.findByIdAndUpdate(user._id, {
-      resetToken,
-      resetTokenExpiry,
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: resetPasswordExpires,
+      // also keep previous fields updated for safety
+      resetToken: hashedToken,
+      resetTokenExpiry: resetPasswordExpires
     });
-    console.log("[FORGOT-PASSWORD] Reset token saved to MongoDB.");
   } catch (saveErr: any) {
-    console.error("[FORGOT-PASSWORD] Token save failed:", saveErr.message);
-    return NextResponse.json(
-      { detail: "Failed to save reset token. Please try again." },
-      { status: 500 }
-    );
+    return NextResponse.json({ detail: "Reset token generation failed." }, { status: 500 });
   }
 
-  // ── 6. Send email ────────────────────────────────
+  // 5. Send email with raw token
   try {
-    await sendPasswordResetEmail(normalizedEmail, user.name, resetToken);
-    console.log(`[FORGOT-PASSWORD] Reset email sent to ${normalizedEmail} in ${Date.now() - startTime}ms.`);
+    await sendPasswordResetEmail(normalizedEmail, user.name, rawToken);
   } catch (emailErr: any) {
-    console.error("[FORGOT-PASSWORD] Email send failed:", emailErr.message);
-
-    // Clear the token since email failed
-    try {
-      await User.findByIdAndUpdate(user._id, {
-        $unset: { resetToken: 1, resetTokenExpiry: 1 },
-      });
-    } catch (_) {}
-
-    // Return the exact SMTP error to the client
-    const msg = emailErr.message || "Unknown email error";
-    if (msg.includes("Missing EMAIL_SERVER_USER") || msg.includes("Missing EMAIL_SERVER_PASSWORD")) {
-      return NextResponse.json(
-        { detail: "Email service is not configured. Please contact support." },
-        { status: 503 }
-      );
-    }
-    if (msg.includes("SMTP authentication") || msg.includes("EAUTH") || msg.includes("535")) {
-      return NextResponse.json(
-        { detail: "Email authentication failed. Please contact support." },
-        { status: 503 }
-      );
-    }
-    if (msg.includes("ECONNREFUSED") || msg.includes("ETIMEDOUT") || msg.includes("ENOTFOUND")) {
-      return NextResponse.json(
-        { detail: "Email server is unreachable. Please try again in a moment." },
-        { status: 503 }
-      );
-    }
-    return NextResponse.json(
-      { detail: `Failed to send reset email: ${msg}` },
-      { status: 500 }
-    );
+    console.error("[FORGOT-PASSWORD] Email failed:", emailErr.message);
+    // Rollback token
+    await User.findByIdAndUpdate(user._id, {
+      $unset: {
+        resetPasswordToken: 1,
+        resetPasswordExpires: 1,
+        resetToken: 1,
+        resetTokenExpiry: 1
+      }
+    });
+    return NextResponse.json({ detail: "Unable to send email." }, { status: 500 });
   }
 
-  // ── 7. Success ───────────────────────────────────
   return NextResponse.json({
     success: true,
-    message: "If an account with that email exists, a reset link has been sent. Please check your inbox."
+    message: "Reset link sent successfully."
   });
 }
 
-// CORS preflight
 export async function OPTIONS() {
   return new Response(null, {
     status: 204,

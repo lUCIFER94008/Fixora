@@ -21,6 +21,8 @@ export interface IUser {
   // Password Reset
   resetToken?: string;
   resetTokenExpiry?: Date;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -43,6 +45,8 @@ const UserSchema = new Schema<IUser>({
   // Password Reset
   resetToken: { type: String },
   resetTokenExpiry: { type: Date },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
 });
 
 export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
