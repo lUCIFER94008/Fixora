@@ -17,6 +17,10 @@ export interface IUser {
   phoneVerified?: boolean;
   emailVerified?: boolean;
   createdAt?: Date;
+
+  // Password Reset
+  resetToken?: string;
+  resetTokenExpiry?: Date;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -34,7 +38,11 @@ const UserSchema = new Schema<IUser>({
   profileImage: { type: String },
   phoneVerified: { type: Boolean, default: false },
   emailVerified: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+
+  // Password Reset
+  resetToken: { type: String },
+  resetTokenExpiry: { type: Date },
 });
 
 export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
