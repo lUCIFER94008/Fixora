@@ -21,8 +21,14 @@ export async function GET(req: Request) {
       workshop = await Workshop.findOne({ owner_id: user._id });
     }
 
+    const { Vehicle } = require("@/models/Schemas");
+    const vehicleCount = await Vehicle.countDocuments({ owner_id: user._id });
+
     return NextResponse.json({
-      user,
+      user: {
+        ...user.toObject(),
+        vehicleCount
+      },
       workshop
     });
   } catch (err: any) {

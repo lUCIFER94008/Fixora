@@ -93,6 +93,74 @@ export default function OwnerDashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [processingUpgrade, setProcessingUpgrade] = useState(false);
+
+  // Load Razorpay SDK
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleUpgradeToPremium = async () => {
+    setProcessingUpgrade(true);
+    const res = await loadRazorpayScript();
+    if (!res) {
+      alert("Razorpay SDK failed to load. Please check your internet connection.");
+      setProcessingUpgrade(false);
+      return;
+    }
+
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_dummykey",
+      amount: 49900, // ₹499 in paise
+      currency: "INR",
+      name: "FIXORA",
+      description: "Upgrade to Premium Subscription",
+      image: "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png",
+      handler: async function (response: any) {
+        try {
+          const verifyRes = await api.post("/api/subscription/pay", {
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_signature: response.razorpay_signature
+          });
+          if (verifyRes.data.success) {
+            alert("Congratulations! You are now a Premium Member.");
+            setShowUpgradeModal(false);
+            // Refresh user state
+            const profileRes = await api.get("/api/profile");
+            setUser(profileRes.data.user);
+            localStorage.setItem("fixora_user", JSON.stringify(profileRes.data.user));
+            fetchDashboardData();
+          } else {
+            alert("Upgrade failed. Please try again.");
+          }
+        } catch (err) {
+          console.error(err);
+          alert("Error updating subscription details.");
+        } finally {
+          setProcessingUpgrade(false);
+        }
+      },
+      prefill: {
+        name: user?.name || "",
+        email: user?.email || "",
+        contact: user?.phone || ""
+      },
+      theme: {
+        color: "#FFD400"
+      }
+    };
+
+    const paymentObject = new (window as any).Razorpay(options);
+    paymentObject.open();
+  };
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { isConnected, sendTyping, sendSeen } = useChat({
@@ -250,6 +318,15 @@ export default function OwnerDashboard() {
 
   const handleAddCar = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check local limits before submitting
+    const userPlan = user?.plan || "FREE";
+    if (userPlan === "FREE" && vehicles.length >= 2) {
+      setShowAddCar(false);
+      setShowUpgradeModal(true);
+      return;
+    }
+
     try {
       const response = await api.post("/api/vehicles", {
         make: carMake,
@@ -264,10 +341,16 @@ export default function OwnerDashboard() {
       setCarMake("");
       setCarModel("");
       setCarPlate("");
-    } catch {
-      const mockCar = { _id: Math.random().toString(), make: carMake, model: carModel, year: carYear, license_plate: carPlate, mileage: carMileage, fuel_type: carFuel };
-      setVehicles(prev => [...prev, mockCar]);
-      setShowAddCar(false);
+    } catch (err: any) {
+      if (err.response?.status === 403) {
+        setShowAddCar(false);
+        setShowUpgradeModal(true);
+      } else {
+        // Fallback mock check if endpoint completely failed
+        const mockCar = { _id: Math.random().toString(), make: carMake, model: carModel, year: carYear, license_plate: carPlate, mileage: carMileage, fuel_type: carFuel };
+        setVehicles(prev => [...prev, mockCar]);
+        setShowAddCar(false);
+      }
     }
   };
 
@@ -516,7 +599,11 @@ export default function OwnerDashboard() {
             {!sidebarCollapsed && (
               <div className="text-left overflow-hidden">
                 <div className="text-xs font-semibold truncate">{user?.name || "Driver"}</div>
-                <span className="text-[9px] font-bold text-[#FFD400] tracking-wide block">VEHICLE OWNER</span>
+                {user?.plan === "PREMIUM" ? (
+                  <span className="text-[9px] font-bold text-[#FFD400] tracking-wide block flex items-center gap-1">⭐ Premium Member</span>
+                ) : (
+                  <span className="text-[9px] font-bold text-[#9A9A9A] tracking-wide block">VEHICLE OWNER</span>
+                )}
               </div>
             )}
           </div>
@@ -545,6 +632,17 @@ export default function OwnerDashboard() {
                 </button>
               </div>
             ))}
+            {user?.plan !== "PREMIUM" && (
+              <div className="relative">
+                <button 
+                  onClick={() => { setShowUpgradeModal(true); setMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-[16px] transition-colors text-left text-[#FFD400] hover:bg-[#FFD400]/10 border border-[#FFD400]/20 mt-2 ${sidebarCollapsed && !mobileMenuOpen ? "justify-center" : ""}`}
+                >
+                  <Sparkles size={14} className="text-[#FFD400]" />
+                  {(!sidebarCollapsed || mobileMenuOpen) && <span className="font-bold">Upgrade to Premium</span>}
+                </button>
+              </div>
+            )}
             {activeChatWorkshop && (
               <div className="relative">
                 {activeTab === "chat" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFD400] rounded-r-md" />}
@@ -593,7 +691,14 @@ export default function OwnerDashboard() {
                 <p className="text-xs text-[#9A9A9A] mt-1">Manage active vehicle fleets.</p>
               </div>
               <button 
-                onClick={() => setShowAddCar(!showAddCar)}
+                onClick={() => {
+                  const userPlan = user?.plan || "FREE";
+                  if (userPlan === "FREE" && vehicles.length >= 2) {
+                    setShowUpgradeModal(true);
+                  } else {
+                    setShowAddCar(!showAddCar);
+                  }
+                }}
                 className="px-4 py-2.5 rounded-[12px] bg-[#FFD400] hover:bg-[#FFC300] text-black text-xs font-bold flex items-center gap-2 hover:scale-[1.03] transition-all shadow-md"
               >
                 <Plus size={14} /> Add Vehicle
@@ -1274,6 +1379,41 @@ export default function OwnerDashboard() {
                   <p className="text-[#9A9A9A] text-xs font-normal mt-0.5">{user?.email}</p>
                 </div>
               </div>
+              <div className="space-y-4 pt-4">
+                <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
+                  <div>
+                    <span className="text-[10px] text-[#9A9A9A] uppercase block">Current Plan</span>
+                    <span className="text-white mt-1 block uppercase font-bold text-[#FFD400]">
+                      {user?.plan === "PREMIUM" ? "⭐ PREMIUM PLAN" : "FREE PLAN"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#9A9A9A] uppercase block">Payment Status</span>
+                    <span className={`mt-1 block font-bold ${user?.plan === "PREMIUM" ? "text-[#7CFF7A]" : "text-[#9A9A9A]"}`}>
+                      {user?.plan === "PREMIUM" ? "PAID" : "FREE"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#9A9A9A] uppercase block">Vehicles Registered</span>
+                    <span className="text-white mt-1 block">{vehicles.length} Vehicles</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#9A9A9A] uppercase block">Max Vehicle Limit</span>
+                    <span className="text-white mt-1 block">
+                      {user?.plan === "PREMIUM" ? "Unlimited" : "2 Vehicles"}
+                    </span>
+                  </div>
+                </div>
+
+                {user?.plan !== "PREMIUM" && (
+                  <button
+                    onClick={handleUpgradeToPremium}
+                    className="w-full mt-4 py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black font-bold rounded-xl transition-all uppercase tracking-wide text-xs"
+                  >
+                    Upgrade to Premium (₹499)
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1459,6 +1599,68 @@ export default function OwnerDashboard() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* Premium Upgrade Modal */}
+        {showUpgradeModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-[#151515] border border-[#FFD400]/40 rounded-[28px] max-w-md w-full p-8 space-y-6 shadow-2xl relative">
+              <button 
+                onClick={() => setShowUpgradeModal(false)}
+                className="absolute top-4 right-4 text-[#9A9A9A] hover:text-white p-1 rounded-full bg-white/5"
+              >
+                <X size={16} />
+              </button>
+              
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-[#FFD400]/10 border border-[#FFD400]/30 flex items-center justify-center text-[#FFD400]">
+                  <Sparkles size={24} />
+                </div>
+                <h3 className="text-xl font-extrabold tracking-tight text-white uppercase">Upgrade to Premium</h3>
+                <p className="text-xs text-[#9A9A9A] leading-relaxed">
+                  You have reached the maximum limit of 2 vehicles on the Free Plan.<br/>
+                  Upgrade to Premium (₹499) to add unlimited vehicles.
+                </p>
+              </div>
+
+              <div className="space-y-3 p-4 bg-[#111111] rounded-2xl border border-white/5 text-xs text-[#9A9A9A]">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={12} className="text-[#FFD400]" />
+                  <span>Unlimited vehicles</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={12} className="text-[#FFD400]" />
+                  <span>Unlimited AI diagnostics</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={12} className="text-[#FFD400]" />
+                  <span>Unlimited complaints</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={12} className="text-[#FFD400]" />
+                  <span>Priority support & Premium badge</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={handleUpgradeToPremium}
+                  disabled={processingUpgrade}
+                  className="w-full py-3 bg-[#FFD400] hover:bg-[#FFC300] disabled:opacity-50 text-black font-extrabold rounded-xl transition-all uppercase tracking-wide flex items-center justify-center gap-2"
+                >
+                  {processingUpgrade ? "Processing..." : "Upgrade Now (₹499)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(false)}
+                  className="w-full py-3 border border-white/5 hover:bg-white/5 text-[#9A9A9A] hover:text-white rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -31,6 +31,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: "Only Owners can register vehicles" }, { status: 403 });
     }
 
+    // Count existing vehicles and validate plan
+    const vehicleCount = await Vehicle.countDocuments({ owner_id: tokenUser._id });
+    
+    // Fetch latest user details to verify the plan
+    const { User } = require("@/models/Schemas");
+    const userDetail = await User.findById(tokenUser._id);
+    const plan = userDetail?.plan || "FREE";
+
+    if (plan === "FREE" && vehicleCount >= 2) {
+      return NextResponse.json(
+        { success: false, message: "Vehicle limit reached. Upgrade to Premium." },
+        { status: 403 }
+      );
+    }
+
     const { make, model, year, license_plate, mileage, fuel_type, image } = await req.json();
 
     if (!make || !model || !year || !license_plate || !mileage || !fuel_type) {

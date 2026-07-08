@@ -537,41 +537,69 @@ export default function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           
-          {/* Card 1 */}
+          {/* FREE PLAN */}
           <div className="glass-card p-8 rounded-[22px] flex flex-col justify-between border-[rgba(255,255,255,0.06)] h-full w-full hover:shadow-[0_0_25px_rgba(255,212,0,0.12)] transition-all duration-300">
             <div className="space-y-6">
               <div>
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A]">Vehicle Driver</span>
-                <h3 className="text-xl font-bold text-white mt-1">BASIC CORE</h3>
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A]">Vehicle Owner</span>
+                <h3 className="text-xl font-bold text-white mt-1">FREE PLAN</h3>
               </div>
               <p className="text-xs text-[#9A9A9A] leading-relaxed min-h-[40px]">Ideal for individual owners desiring predictive maintenance support.</p>
               <div className="py-4">
                 <span className="text-4xl font-bold text-white">₹0</span>
-                <span className="text-[#9A9A9A] text-xs"> / Lifetime Free</span>
               </div>
               <ul className="space-y-3 text-xs text-[#9A9A9A]">
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Add up to 3 cars</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Add up to 2 vehicles</li>
                 <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> AI diagnostic reports</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Live repair updates</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Messaging with technicians</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Create complaints</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Chat with workshops</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Repair history & invoices</li>
               </ul>
             </div>
             <Link 
               href="/register" 
               className="mt-8 w-full text-center py-3 rounded-[16px] border border-[rgba(255,255,255,0.08)] hover:border-white transition-all text-xs font-semibold text-white"
             >
-              Sign Up Now
+              Get Started
             </Link>
           </div>
 
-          {/* Card 2 - Highlighted */}
+          {/* PREMIUM PLAN */}
           <div className="glass-card p-8 rounded-[22px] flex flex-col justify-between border-[#FFD400] relative overflow-hidden h-full w-full hover:shadow-[0_0_25px_rgba(255,212,0,0.15)] transition-all duration-300">
             <div className="absolute top-0 right-0 px-3 py-1 bg-[#FFD400] text-black text-[9px] font-extrabold uppercase rounded-bl-[12px] tracking-wide select-none">
-              Most Popular
+              Unlimited Cars
             </div>
             <div className="space-y-6">
               <div>
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-[#FFD400]">Workshop Specialized</span>
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-[#FFD400]">Vehicle Owner Premium</span>
+                <h3 className="text-xl font-bold text-white mt-1">PREMIUM PLAN</h3>
+              </div>
+              <p className="text-xs text-[#9A9A9A] leading-relaxed min-h-[40px]">Unlocks unlimited vehicle listings and premium diagnostics.</p>
+              <div className="py-4">
+                <span className="text-4xl font-bold text-white">₹499</span>
+                <span className="text-[#9A9A9A] text-xs"> / one-time</span>
+              </div>
+              <ul className="space-y-3 text-xs text-[#9A9A9A]">
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Unlimited vehicles</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Unlimited diagnostics</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Unlimited complaints</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Priority support & Premium badge</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Advanced analytics</li>
+              </ul>
+            </div>
+            <Link 
+              href="/register" 
+              className="mt-8 w-full text-center py-3 rounded-[16px] bg-[#FFD400] hover:bg-[#FFC300] text-black font-bold text-xs transition-all hover:scale-[1.02]"
+            >
+              Upgrade Now
+            </Link>
+          </div>
+
+          {/* WORKSHOP SEAT */}
+          <div className="glass-card p-8 rounded-[22px] flex flex-col justify-between border-[rgba(255,255,255,0.06)] h-full w-full hover:shadow-[0_0_25px_rgba(255,212,0,0.12)] transition-all duration-300">
+            <div className="space-y-6">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A]">Workshop Specialized</span>
                 <h3 className="text-xl font-bold text-white mt-1">GARAGE CORE</h3>
               </div>
               <p className="text-xs text-[#9A9A9A] leading-relaxed min-h-[40px]">For independent mechanic workshops looking to sync platform bookings.</p>
@@ -588,36 +616,9 @@ export default function Home() {
             </div>
             <Link 
               href="/register" 
-              className="mt-8 w-full text-center py-3 rounded-[16px] bg-[#FFD400] hover:bg-[#FFC300] text-black font-bold text-xs transition-all hover:scale-[1.02]"
-            >
-              Get Workshop Seat
-            </Link>
-          </div>
-
-          {/* Card 3 */}
-          <div className="glass-card p-8 rounded-[22px] flex flex-col justify-between border-[rgba(255,255,255,0.06)] h-full w-full md:col-span-2 lg:col-span-1 md:w-[calc(50%-16px)] md:mx-auto lg:w-full hover:shadow-[0_0_25px_rgba(255,212,0,0.12)] transition-all duration-300">
-            <div className="space-y-6">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-[#9A9A9A]">Platform Administrator</span>
-                <h3 className="text-xl font-bold text-white mt-1">CONTROL MODULE</h3>
-              </div>
-              <p className="text-xs text-[#9A9A9A] leading-relaxed min-h-[40px]">For multi-outlet service groups requiring advanced control panels.</p>
-              <div className="py-4">
-                <span className="text-4xl font-bold text-white">₹4,999</span>
-                <span className="text-[#9A9A9A] text-xs"> / month</span>
-              </div>
-              <ul className="space-y-3 text-xs text-[#9A9A9A]">
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Multi-outlet dashboard views</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Security audit logs</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Platform transaction metrics</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#FFD400]" /> Custom API endpoints access</li>
-              </ul>
-            </div>
-            <Link 
-              href="/register" 
               className="mt-8 w-full text-center py-3 rounded-[16px] border border-[rgba(255,255,255,0.08)] hover:border-white transition-all text-xs font-semibold text-white"
             >
-              Contact Sales
+              Get Workshop Seat
             </Link>
           </div>
 

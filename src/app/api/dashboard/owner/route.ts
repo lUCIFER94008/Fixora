@@ -17,6 +17,10 @@ export async function GET(req: Request) {
 
     const ownerId = tokenUser._id;
 
+    // Fetch latest user details to get plan fields
+    const { User } = require("@/models/Schemas");
+    const userDetail = await User.findById(ownerId).select("plan vehicleLimit paymentStatus");
+
     // Fetch registered vehicles
     const vehicles = await Vehicle.find({ owner_id: ownerId }).sort({ created_at: -1 });
 
@@ -45,7 +49,12 @@ export async function GET(req: Request) {
       complaints,
       invoices,
       workshops,
-      notifications
+      notifications,
+      userPlan: {
+        plan: userDetail?.plan || "FREE",
+        vehicleLimit: userDetail?.vehicleLimit ?? 2,
+        paymentStatus: userDetail?.paymentStatus || "FREE"
+      }
     });
   } catch (err: any) {
     console.error("Owner Dashboard GET error:", err);

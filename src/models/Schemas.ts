@@ -23,6 +23,14 @@ export interface IUser {
   resetTokenExpiry?: Date;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
+
+  // Subscription Details
+  plan?: "FREE" | "PREMIUM";
+  vehicleLimit?: number;
+  paymentStatus?: "FREE" | "PAID";
+  paymentId?: string;
+  subscriptionStart?: Date;
+  subscriptionEnd?: Date;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -47,6 +55,14 @@ const UserSchema = new Schema<IUser>({
   resetTokenExpiry: { type: Date },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
+
+  // Subscription Details
+  plan: { type: String, enum: ["FREE", "PREMIUM"], default: "FREE" },
+  vehicleLimit: { type: Number, default: 2 },
+  paymentStatus: { type: String, enum: ["FREE", "PAID"], default: "FREE" },
+  paymentId: { type: String },
+  subscriptionStart: { type: Date },
+  subscriptionEnd: { type: Date },
 });
 
 export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
