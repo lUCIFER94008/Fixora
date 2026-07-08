@@ -844,10 +844,12 @@ export default function WorkshopDashboard() {
                         <h4 className="text-[10px] uppercase font-bold text-[#9A9A9A]">Attached Issue Images</h4>
                         <div className="flex gap-2 overflow-x-auto pb-2">
                           {activeComplaint.images.map((img: string, idx: number) => (
-                            <img 
+                            <Image 
                               key={idx} 
                               src={img} 
                               alt={`complaint-${idx}`} 
+                              width={96}
+                              height={80}
                               className="w-24 h-20 object-cover rounded-lg border border-white/10"
                             />
                           ))}
@@ -975,9 +977,11 @@ export default function WorkshopDashboard() {
                       return (
                         <tr key={owner?._id || "1"} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-4 px-4 font-bold text-white uppercase flex items-center gap-2">
-                            <img 
+                            <Image 
                               src={owner?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
                               alt="avatar" 
+                              width={24}
+                              height={24}
                               className="w-6 h-6 rounded-full object-cover border border-white/10"
                             />
                             {owner?.name || "Rohan Sharma"}
@@ -1012,9 +1016,11 @@ export default function WorkshopDashboard() {
                 <div className="w-full max-w-md p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] shadow-2xl relative space-y-6">
                   <div className="flex justify-between items-start border-b border-white/5 pb-4">
                     <div className="flex items-center gap-3">
-                      <img 
+                      <Image 
                         src={selectedCustomerDetail.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
                         alt="avatar" 
+                        width={48}
+                        height={48}
                         className="w-12 h-12 rounded-full object-cover border border-[#FFD400]/40"
                       />
                       <div className="text-left">
@@ -1182,9 +1188,11 @@ export default function WorkshopDashboard() {
 
             <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md text-xs font-semibold">
               <div className="flex items-center gap-4 border-b border-white/5 pb-6">
-                <img 
+                <Image 
                   src={user?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
                   alt="avatar" 
+                  width={64}
+                  height={64}
                   className="w-16 h-16 rounded-full border border-[#FFD400]/40 object-cover"
                 />
                 <div>

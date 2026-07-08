@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { User, Workshop } from "@/models/Schemas";
+import { User, Workshop, Vehicle } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
 
 export async function GET(req: Request) {
@@ -21,7 +21,6 @@ export async function GET(req: Request) {
       workshop = await Workshop.findOne({ owner_id: user._id });
     }
 
-    const { Vehicle } = require("@/models/Schemas");
     const vehicleCount = await Vehicle.countDocuments({ owner_id: user._id });
 
     return NextResponse.json({

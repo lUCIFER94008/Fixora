@@ -137,9 +137,11 @@ export default function Home() {
               {session?.user ? (
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <img 
+                    <Image 
                       src={session.user.image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
                       alt={session.user.name || "profile"} 
+                      width={32}
+                      height={32}
                       className="w-8 h-8 rounded-full border border-[#FFD400]/40 object-cover"
                     />
                     <div className="flex flex-col items-start leading-none">
@@ -212,9 +214,11 @@ export default function Home() {
                 {session?.user ? (
                   <>
                     <div className="flex items-center gap-3 p-2.5 rounded-[12px] bg-white/5 border border-white/10">
-                      <img 
+                      <Image 
                         src={session.user.image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
                         alt="profile" 
+                        width={36}
+                        height={36}
                         className="w-9 h-9 rounded-full object-cover border border-[#FFD400]/40"
                       />
                       <div>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { Vehicle } from "@/models/Schemas";
+import { Vehicle, User } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
 
 export async function GET(req: Request) {
@@ -35,7 +35,6 @@ export async function POST(req: Request) {
     const vehicleCount = await Vehicle.countDocuments({ owner_id: tokenUser._id });
     
     // Fetch latest user details to verify the plan
-    const { User } = require("@/models/Schemas");
     const userDetail = await User.findById(tokenUser._id);
     const plan = userDetail?.plan || "FREE";
 

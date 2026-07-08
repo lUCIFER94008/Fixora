@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { Vehicle, Complaint, Invoice, Workshop, Notification } from "@/models/Schemas";
+import { Vehicle, Complaint, Invoice, Workshop, Notification, User } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
 
 export async function GET(req: Request) {
@@ -18,7 +18,6 @@ export async function GET(req: Request) {
     const ownerId = tokenUser._id;
 
     // Fetch latest user details to get plan fields
-    const { User } = require("@/models/Schemas");
     const userDetail = await User.findById(ownerId).select("plan vehicleLimit paymentStatus");
 
     // Fetch registered vehicles

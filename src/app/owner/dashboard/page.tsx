@@ -751,9 +751,11 @@ export default function OwnerDashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 text-left">
               {vehicles.map((v) => (
                 <div key={v._id} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] hover:border-[#FFD400] transition-all relative group overflow-hidden shadow-md flex flex-col md:flex-row gap-5 items-center">
-                  <img 
+                  <Image 
                     src={v.image || "https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&q=80&w=600"} 
                     alt={`${v.make} ${v.model}`}
+                    width={128}
+                    height={96}
                     className="w-full md:w-32 h-24 object-cover rounded-[16px] border border-white/10"
                   />
                   <div className="flex-1 text-left w-full relative">
@@ -1266,9 +1268,11 @@ export default function OwnerDashboard() {
                   
                   {/* Top Header Card */}
                   <div className="flex gap-4 items-start">
-                    <img 
+                    <Image 
                       src={w.owner_id?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
                       alt="logo" 
+                      width={48}
+                      height={48}
                       className="w-12 h-12 rounded-full border border-white/10 object-cover"
                     />
                     <div className="flex-1 text-left">
@@ -1369,9 +1373,11 @@ export default function OwnerDashboard() {
 
             <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md text-xs font-semibold">
               <div className="flex items-center gap-4 border-b border-white/5 pb-6">
-                <img 
+                <Image 
                   src={user?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
                   alt="avatar" 
+                  width={64}
+                  height={64}
                   className="w-16 h-16 rounded-full border border-[#FFD400]/40 object-cover"
                 />
                 <div>
