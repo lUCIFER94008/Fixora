@@ -163,7 +163,7 @@ export default function OwnerDashboard() {
   };
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom } = useChat({
+  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom, sendMessage } = useChat({
     userId: user?._id,
     onMessageReceived: (message) => {
       const isActiveRoom = message.complaintId === chatRoomId;
@@ -479,6 +479,13 @@ export default function OwnerDashboard() {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
 
     try {
+      sendMessage({
+        roomId: roomId || "general",
+        message: optimistic.message,
+        senderId: user?._id,
+        receiverId,
+        timestamp: optimistic.createdAt
+      });
       await api.post("/api/chat/send", {
         complaintId: roomId,
         receiverId,

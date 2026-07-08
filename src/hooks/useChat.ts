@@ -97,6 +97,13 @@ export function useChat({
       });
 
       // ── Message Listeners ──
+      socket.on("newMessage", (data: any) => {
+        log("newMessage event received:", data);
+        if (onMessageReceivedRef.current) {
+          onMessageReceivedRef.current(data.message || data);
+        }
+      });
+
       socket.on("NEW_MESSAGE", (data: any) => {
         log("NEW_MESSAGE event received:", data);
         if (onMessageReceivedRef.current && data.message) {
@@ -218,8 +225,16 @@ export function useChat({
         type: "join-room",
         roomId,
       });
+      // Emit direct camelCase event
+      try {
+        if (socketRef.current?.connected) {
+          socketRef.current.emit("joinRoom", roomId);
+        }
+      } catch (e) {
+        logError("Failed to emit joinRoom", e);
+      }
     },
-    [sendEvent]
+    [sendEvent, logError]
   );
 
   const leaveRoom = useCallback(
@@ -228,8 +243,16 @@ export function useChat({
         type: "leave-room",
         roomId,
       });
+      // Emit direct camelCase event
+      try {
+        if (socketRef.current?.connected) {
+          socketRef.current.emit("leaveRoom", roomId);
+        }
+      } catch (e) {
+        logError("Failed to emit leaveRoom", e);
+      }
     },
-    [sendEvent]
+    [sendEvent, logError]
   );
 
   const sendTyping = useCallback(
@@ -267,6 +290,25 @@ export function useChat({
     [sendEvent]
   );
 
+  const sendMessage = useCallback(
+    (messageData: { roomId: string; message: string; senderId: string; receiverId: string; timestamp?: string }) => {
+      sendEvent({
+        type: "send-message",
+        ...messageData,
+        complaintId: messageData.roomId
+      });
+      // Direct camelCase sendMessage
+      try {
+        if (socketRef.current?.connected) {
+          socketRef.current.emit("sendMessage", messageData);
+        }
+      } catch (e) {
+        logError("Failed to emit sendMessage", e);
+      }
+    },
+    [sendEvent, logError]
+  );
+
   return {
     isConnected: status === "Connected",
     connectionStatus: status,
@@ -274,5 +316,6 @@ export function useChat({
     leaveRoom,
     sendTyping,
     sendSeen,
+    sendMessage,
   };
 }

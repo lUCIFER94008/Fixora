@@ -134,7 +134,7 @@ export default function WorkshopDashboard() {
   }, [user]);
 
   // Websocket hook
-  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom } = useChat({
+  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom, sendMessage } = useChat({
     userId: user?._id,
     onMessageReceived: (message) => {
       const isActiveRoom = message.complaintId === chatRoomId;
@@ -372,6 +372,13 @@ export default function WorkshopDashboard() {
     setSmartReplies([]);
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     try {
+      sendMessage({
+        roomId: roomId || "general",
+        message: msgText,
+        senderId: user?._id,
+        receiverId: activeChatOwner._id,
+        timestamp: optimistic.createdAt
+      });
       await api.post("/api/chat/send", {
         complaintId: roomId,
         receiverId: activeChatOwner._id,
