@@ -84,6 +84,22 @@ export default function WorkshopDashboard() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [toast, setToast] = useState<{ type: "success" | "error" | "info" | "warning"; message: string } | null>(null);
 
+  // Editable Profile States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editWorkshopName, setEditWorkshopName] = useState("");
+  const [editOwnerName, setEditOwnerName] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editPincode, setEditPincode] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editWorkingHours, setEditWorkingHours] = useState("");
+  const [editAbout, setEditAbout] = useState("");
+  const [editServices, setEditServices] = useState<string[]>([]);
+  const [editLogoUrl, setEditLogoUrl] = useState("");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+
   const fetchWorkshopDashboardData = async () => {
     try {
       const response = await api.get("/api/dashboard/workshop");
@@ -130,6 +146,91 @@ export default function WorkshopDashboard() {
       }
     }
     await fetchWorkshopDashboardData();
+  };
+
+  const handleOpenEditProfile = () => {
+    setEditWorkshopName(workshop?.name || "");
+    setEditOwnerName(user?.name || "");
+    setEditAddress(workshop?.address || "");
+    setEditCity(workshop?.city || "");
+    setEditState(workshop?.state || "Maharashtra");
+    setEditPincode(workshop?.pincode || "");
+    setEditPhone(workshop?.phone || user?.phone || "");
+    setEditWorkingHours(workshop?.working_hours || "9:00 AM - 7:00 PM");
+    setEditAbout(workshop?.about || "");
+    setEditServices(workshop?.services || []);
+    setEditLogoUrl(workshop?.profile_image || user?.profile_image || "");
+    setIsEditingProfile(true);
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "fixora_uploads");
+
+    try {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/dpmpefw2p/image/upload`, {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json();
+      if (data.secure_url) {
+        setEditLogoUrl(data.secure_url);
+        showToast("success", "Logo uploaded successfully.");
+      } else {
+        showToast("error", "Upload failed. Please check preset config.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Image upload failed. Network error.");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editWorkshopName || !editOwnerName || !editAddress || !editCity || !editPhone) {
+      showToast("error", "Please fill in all required fields.");
+      return;
+    }
+
+    if (editPhone.trim().length < 10) {
+      showToast("error", "Phone number must be at least 10 digits.");
+      return;
+    }
+
+    setProfileSaving(true);
+    try {
+      const response = await api.patch("/api/profile", {
+        name: editOwnerName,
+        phone: editPhone,
+        profile_image: editLogoUrl,
+        workshopName: editWorkshopName,
+        address: editAddress,
+        city: editCity,
+        state: editState,
+        pincode: editPincode,
+        working_hours: editWorkingHours,
+        services: editServices,
+        about: editAbout
+      });
+
+      setUser(response.data.user);
+      setWorkshop(response.data.workshop);
+      localStorage.setItem("fixora_user", JSON.stringify(response.data.user));
+      setIsEditingProfile(false);
+      showToast("success", "Profile updated successfully.");
+      fetchWorkshopProfile();
+    } catch (err: any) {
+      showToast("error", err.response?.data?.detail || "Failed to save profile changes.");
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -1380,40 +1481,309 @@ export default function WorkshopDashboard() {
 
         {/* TAB: PROFILE */}
         {activeTab === "profile" && (
-          <div className="space-y-6 text-left max-w-2xl mx-auto">
-            <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">Workshop Profile</h2>
-              <p className="text-xs text-[#9A9A9A] mt-1">Manage public garage metadata and credentials.</p>
+          <div className="space-y-6 text-left max-w-4xl mx-auto font-sans text-xs">
+            
+            {/* Header section */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#151515] border border-[rgba(255,255,255,0.06)] p-6 rounded-[22px] shadow-md relative overflow-hidden">
+              <div className="flex items-center gap-4">
+                <div className="relative group shrink-0">
+                  <Image 
+                    src={workshop?.profile_image || user?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
+                    alt="avatar" 
+                    width={80}
+                    height={80}
+                    className="w-20 h-20 rounded-full border-2 border-[#FFD400]/40 object-cover"
+                  />
+                  {workshop?.is_verified && (
+                    <span className="absolute -bottom-1 -right-1 bg-[#FFD400] text-black text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border border-[#111] flex items-center gap-0.5 shadow-md">
+                      ✓ VERIFIED
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-white uppercase flex items-center gap-2">
+                    {workshop?.name || "My Garage"}
+                  </h2>
+                  <p className="text-xs text-[#9A9A9A] font-medium font-mono mt-0.5">Owner: {user?.name || "Manager"}</p>
+                  <p className="text-[10px] text-[#9A9A9A]/60 font-mono mt-0.5">{user?.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleOpenEditProfile}
+                className="w-full md:w-auto px-5 py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black font-extrabold rounded-[12px] uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+              >
+                Edit Profile
+              </button>
             </div>
 
-            <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md text-xs font-semibold">
-              <div className="flex items-center gap-4 border-b border-white/5 pb-6">
-                <Image 
-                  src={user?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
-                  alt="avatar" 
-                  width={64}
-                  height={64}
-                  className="w-16 h-16 rounded-full border border-[#FFD400]/40 object-cover"
-                />
-                <div>
-                  <h3 className="text-lg font-bold text-white uppercase flex items-center gap-2">
-                    {workshop?.name} <ShieldCheck className="text-[#FFD400]" size={16} />
-                  </h3>
-                  <p className="text-[#9A9A9A] text-xs font-normal mt-0.5">{workshop?.address}</p>
+            {/* Content layout grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Left Column: Contact details & Stats */}
+              <div className="space-y-6">
+                <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 shadow-md">
+                  <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Garage Coordinates</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Phone Core</span>
+                      <span className="text-white font-mono font-bold text-sm block mt-0.5">{workshop?.phone || user?.phone || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Working Hours</span>
+                      <span className="text-white font-bold block mt-0.5">{workshop?.working_hours || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Network Rating</span>
+                      <span className="text-[#FFD400] font-black block mt-0.5">⭐ {workshop?.rating || "5.0"} / 5.0</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Repairs Completed</span>
+                      <span className="text-white font-black block mt-0.5">
+                        {complaints.filter(c => c.status === "Completed" || c.status === "Delivered").length} Jobs
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 shadow-md">
+                  <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">About Workshop</h3>
+                  <p className="text-[#9A9A9A] leading-relaxed text-xs">
+                    {workshop?.about || "No description provided. Click Edit Profile to add brief information about your garage, specialties, and tools."}
+                  </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] text-[#9A9A9A] uppercase block">Phone Core</span>
-                  <span className="text-white mt-1 block font-mono">{workshop?.phone}</span>
+              {/* Right Column: Address & Services */}
+              <div className="space-y-6">
+                <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 shadow-md">
+                  <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Location Parameters</h3>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Address</span>
+                      <span className="text-white block mt-0.5">{workshop?.address || "—"}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <span className="text-[9px] text-[#9A9A9A] uppercase block">City</span>
+                        <span className="text-white block mt-0.5">{workshop?.city || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-[#9A9A9A] uppercase block">State</span>
+                        <span className="text-white block mt-0.5">{workshop?.state || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-[#9A9A9A] uppercase block">Pincode</span>
+                        <span className="text-white block mt-0.5">{workshop?.pincode || "—"}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-[#9A9A9A] uppercase block">Status</span>
-                  <span className="text-[#28C76F] mt-1 block font-bold">VERIFIED GARAGE</span>
+
+                <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 shadow-md">
+                  <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Available Services</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {workshop?.services && workshop.services.length > 0 ? (
+                      workshop.services.map((s: string, idx: number) => (
+                        <span key={idx} className="bg-white/5 border border-white/10 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase">
+                          {s}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[#9A9A9A] text-xs">No services selected.</span>
+                    )}
+                  </div>
                 </div>
               </div>
+
             </div>
+
+            {/* EDIT PROFILE MODAL */}
+            {isEditingProfile && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <form onSubmit={handleSaveProfile} className="bg-[#111111] border border-[rgba(255,255,255,0.08)] rounded-[28px] max-w-lg w-full p-6 space-y-5 text-left shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                  <button 
+                    type="button"
+                    onClick={() => setIsEditingProfile(false)}
+                    className="absolute top-4 right-4 p-1 rounded-full bg-white/5 text-[#9A9A9A] hover:text-white"
+                  >
+                    <X size={16} />
+                  </button>
+                  
+                  <div>
+                    <h3 className="font-extrabold text-lg text-white uppercase tracking-wider">Edit Workshop Profile</h3>
+                    <p className="text-[10px] text-[#9A9A9A] mt-0.5">Modify public metadata and available services.</p>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    
+                    {/* Logo upload row */}
+                    <div className="flex items-center gap-4 border-b border-white/5 pb-4">
+                      <Image 
+                        src={editLogoUrl || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
+                        alt="logo" 
+                        width={64}
+                        height={64}
+                        className="w-16 h-16 rounded-full border border-white/10 object-cover"
+                      />
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Workshop Logo</label>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="text-[10px] text-white bg-white/5 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-[#FFD400] file:text-black hover:file:bg-[#FFC300]"
+                        />
+                        {uploadingLogo && <span className="text-[#FFD400] text-[9px] mt-1 block">Uploading file...</span>}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Workshop Name *</label>
+                        <input 
+                          type="text" 
+                          value={editWorkshopName}
+                          onChange={(e) => setEditWorkshopName(e.target.value)}
+                          required
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Owner Name *</label>
+                        <input 
+                          type="text" 
+                          value={editOwnerName}
+                          onChange={(e) => setEditOwnerName(e.target.value)}
+                          required
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Phone Core *</label>
+                        <input 
+                          type="text" 
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          required
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Working Hours</label>
+                        <input 
+                          type="text" 
+                          value={editWorkingHours}
+                          onChange={(e) => setEditWorkingHours(e.target.value)}
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Address *</label>
+                      <input 
+                        type="text" 
+                        value={editAddress}
+                        onChange={(e) => setEditAddress(e.target.value)}
+                        required
+                        className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">City *</label>
+                        <input 
+                          type="text" 
+                          value={editCity}
+                          onChange={(e) => setEditCity(e.target.value)}
+                          required
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">State</label>
+                        <input 
+                          type="text" 
+                          value={editState}
+                          onChange={(e) => setEditState(e.target.value)}
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Pincode</label>
+                        <input 
+                          type="text" 
+                          value={editPincode}
+                          onChange={(e) => setEditPincode(e.target.value)}
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">About Workshop</label>
+                      <textarea 
+                        value={editAbout}
+                        onChange={(e) => setEditAbout(e.target.value)}
+                        rows={2}
+                        className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-[#FFD400] resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1.5">Offered Services</label>
+                      <div className="grid grid-cols-2 gap-2 p-3 bg-[#151515] border border-white/5 rounded-xl max-h-24 overflow-y-auto">
+                        {["General Diagnostics", "Battery Testing", "Brake Overhaul", "AC Tuneup", "Suspension Care", "Electrical Tuning", "Engine Overhaul", "EV Powertrain Diagnostics"].map((srv) => {
+                          const hasSrv = editServices.includes(srv);
+                          return (
+                            <label key={srv} className="flex items-center gap-2 text-white font-semibold cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={hasSrv}
+                                onChange={() => {
+                                  if (hasSrv) {
+                                    setEditServices(prev => prev.filter(x => x !== srv));
+                                  } else {
+                                    setEditServices(prev => [...prev, srv]);
+                                  }
+                                }}
+                                className="accent-[#FFD400]"
+                              />
+                              {srv}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="flex flex-col gap-2 pt-2 text-xs font-semibold">
+                    <button
+                      type="submit"
+                      disabled={profileSaving || uploadingLogo}
+                      className="w-full py-3 bg-[#FFD400] hover:bg-[#FFC300] disabled:opacity-50 text-black font-extrabold rounded-xl transition-all uppercase tracking-wide flex items-center justify-center gap-2"
+                    >
+                      {profileSaving ? "Saving Changes..." : "Save Changes"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(false)}
+                      className="w-full py-3 border border-white/5 hover:bg-white/5 text-[#9A9A9A] hover:text-white rounded-xl transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
           </div>
         )}
 

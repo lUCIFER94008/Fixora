@@ -106,8 +106,11 @@ export interface IWorkshop {
   rating: number;
   review_count: number;
   city?: string;
+  state?: string;
+  pincode?: string;
   working_hours?: string;
   current_status?: string;
+  about?: string;
   latitude?: number;
   longitude?: number;
   created_at?: Date;
@@ -124,8 +127,11 @@ const WorkshopSchema = new Schema<IWorkshop>({
   rating: { type: Number, default: 5.0 },
   review_count: { type: Number, default: 0 },
   city: { type: String, default: "Pune" },
+  state: { type: String, default: "Maharashtra" },
+  pincode: { type: String, default: "" },
   working_hours: { type: String, default: "9:00 AM - 7:00 PM" },
   current_status: { type: String, default: "Open" },
+  about: { type: String, default: "" },
   latitude: { type: Number, default: 18.5204 },
   longitude: { type: Number, default: 73.8567 },
   created_at: { type: Date, default: Date.now }

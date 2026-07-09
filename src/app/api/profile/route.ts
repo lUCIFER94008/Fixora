@@ -45,22 +45,66 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { name, phone, profileImage, profile_image } = body;
+    const { 
+      name, 
+      phone, 
+      profileImage, 
+      profile_image,
+      // Workshop Fields
+      workshopName,
+      address,
+      city,
+      state,
+      pincode,
+      working_hours,
+      services,
+      about
+    } = body;
 
     const user = await User.findById(tokenUser._id);
     if (!user) {
       return NextResponse.json({ detail: "User not found" }, { status: 404 });
     }
 
+    // Phone validation
+    if (phone && phone.trim().length < 10) {
+      return NextResponse.json({ detail: "Invalid phone number (must be at least 10 digits)" }, { status: 400 });
+    }
+
     if (name) user.name = name;
     if (phone) user.phone = phone;
-    if (profileImage || profile_image) {
-      user.profileImage = profileImage || profile_image;
-      user.profile_image = profileImage || profile_image;
+    
+    const finalImg = profileImage || profile_image;
+    if (finalImg) {
+      user.profileImage = finalImg;
+      user.profile_image = finalImg;
     }
 
     await user.save();
-    return NextResponse.json(user);
+
+    let updatedWorkshop = null;
+    if (user.role === "workshop") {
+      const ws = await Workshop.findOne({ owner_id: user._id });
+      if (ws) {
+        if (workshopName) ws.name = workshopName;
+        if (address) ws.address = address;
+        if (city) ws.city = city;
+        if (state) ws.state = state;
+        if (pincode) ws.pincode = pincode;
+        if (phone) ws.phone = phone;
+        if (working_hours) ws.working_hours = working_hours;
+        if (services && Array.isArray(services)) ws.services = services;
+        if (about !== undefined) ws.about = about;
+        
+        await ws.save();
+        updatedWorkshop = ws;
+      }
+    }
+
+    return NextResponse.json({
+      user,
+      workshop: updatedWorkshop
+    });
   } catch (err: any) {
     console.error("Profile PATCH error:", err);
     return NextResponse.json({ detail: "Server error" }, { status: 500 });
