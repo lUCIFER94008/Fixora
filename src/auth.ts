@@ -18,29 +18,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        await connectToDatabase();
-        const user = await User.findOne({ email: credentials.email });
-        if (!user || !user.password_hash) return null;
-        
-        const isMatch = bcrypt.compareSync(credentials.password as string, user.password_hash);
-        if (!isMatch) return null;
+        try {
+          if (!credentials?.email || !credentials?.password) return null;
+          await connectToDatabase();
+          const user = await User.findOne({ email: credentials.email });
+          if (!user || !user.password_hash) return null;
+          
+          const isMatch = bcrypt.compareSync(credentials.password as string, user.password_hash);
+          if (!isMatch) return null;
 
-        return {
-          id: user._id.toString(),
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          phone: user.phone,
-          image: user.profile_image
-        };
+          return {
+            id: user._id.toString(),
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            phone: user.phone,
+            image: user.profile_image
+          };
+        } catch (error) {
+          console.error("NextAuth authorize callback error caught:", error);
+          return null;
+        }
       }
     })
   ],
   callbacks: {
     ...authConfig.callbacks,
     async signIn() {
-      return true;
+      try {
+        return true;
+      } catch (error) {
+        console.error("NextAuth signIn callback error caught:", error);
+        return false;
+      }
     },
   }
 });

@@ -11,51 +11,66 @@ export const authConfig = {
   },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.role = (user as any).role;
-        token.id = user.id;
-        token.image = (user as any).image || (user as any).profile_image;
-        token.phone = (user as any).phone;
+      try {
+        if (user) {
+          token.role = (user as any).role;
+          token.id = user.id;
+          token.image = (user as any).image || (user as any).profile_image;
+          token.phone = (user as any).phone;
+        }
+        return token;
+      } catch (error) {
+        console.error("NextAuth jwt callback error caught:", error);
+        return token;
       }
-      return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        (session.user as any).role = token.role;
-        (session.user as any).id = token.id;
-        (session.user as any).image = token.image;
-        (session.user as any).phone = token.phone;
+      try {
+        if (session.user) {
+          (session.user as any).role = token.role;
+          (session.user as any).id = token.id;
+          (session.user as any).image = token.image;
+          (session.user as any).phone = token.phone;
+        }
+        return session;
+      } catch (error) {
+        console.error("NextAuth session callback error caught:", error);
+        return session;
       }
-      return session;
     },
     authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
-      const pathname = nextUrl.pathname;
-      
-      const isDashboardRoute = pathname.startsWith("/owner/dashboard") ||
-                               pathname.startsWith("/workshop/dashboard") ||
-                               pathname.startsWith("/admin/dashboard");
+      try {
+        const isLoggedIn = !!auth?.user;
+        const pathname = nextUrl.pathname;
+        
+        const isDashboardRoute = pathname.startsWith("/owner/dashboard") ||
+                                 pathname.startsWith("/workshop/dashboard") ||
+                                 pathname.startsWith("/admin/dashboard");
 
-      if (isDashboardRoute) {
-        if (!isLoggedIn) return false; // Redirect to login page
+        if (isDashboardRoute) {
+          if (!isLoggedIn) return false; // Redirect to login page
 
-        const userRole = (auth.user as any)?.role;
-        if (!userRole) return false;
+          const userRole = (auth.user as any)?.role;
+          if (!userRole) return false;
 
-        // Route checking and auto-redirection based on user role
-        if (userRole === "admin" && !pathname.startsWith("/admin")) {
-          return Response.redirect(new URL("/admin/dashboard", nextUrl));
+          // Route checking and auto-redirection based on user role
+          if (userRole === "admin" && !pathname.startsWith("/admin")) {
+            return Response.redirect(new URL("/admin/dashboard", nextUrl));
+          }
+          if (userRole === "workshop" && !pathname.startsWith("/workshop")) {
+            return Response.redirect(new URL("/workshop/dashboard", nextUrl));
+          }
+          if (userRole === "owner" && !pathname.startsWith("/owner")) {
+            return Response.redirect(new URL("/owner/dashboard", nextUrl));
+          }
+
+          return true;
         }
-        if (userRole === "workshop" && !pathname.startsWith("/workshop")) {
-          return Response.redirect(new URL("/workshop/dashboard", nextUrl));
-        }
-        if (userRole === "owner" && !pathname.startsWith("/owner")) {
-          return Response.redirect(new URL("/owner/dashboard", nextUrl));
-        }
-
         return true;
+      } catch (error) {
+        console.error("NextAuth authorized callback error caught:", error);
+        return false;
       }
-      return true;
     },
   },
   secret: process.env.AUTH_SECRET || "4f7e2a9b3c5d8e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
