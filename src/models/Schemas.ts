@@ -31,6 +31,21 @@ export interface IUser {
   paymentId?: string;
   subscriptionStart?: Date;
   subscriptionEnd?: Date;
+
+  // Extended Profile Fields
+  gender?: string;
+  dob?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  emergency_contact?: string;
+  payment_history?: Array<{
+    transaction_id: string;
+    date: Date;
+    amount: number;
+    status: string;
+  }>;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -63,6 +78,21 @@ const UserSchema = new Schema<IUser>({
   paymentId: { type: String },
   subscriptionStart: { type: Date },
   subscriptionEnd: { type: Date },
+
+  // Extended Profile Fields
+  gender: { type: String, default: "" },
+  dob: { type: String, default: "" },
+  address: { type: String, default: "" },
+  city: { type: String, default: "" },
+  state: { type: String, default: "" },
+  pincode: { type: String, default: "" },
+  emergency_contact: { type: String, default: "" },
+  payment_history: [{
+    transaction_id: { type: String },
+    date: { type: Date, default: Date.now },
+    amount: { type: Number },
+    status: { type: String, default: "Paid" }
+  }]
 });
 
 export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);

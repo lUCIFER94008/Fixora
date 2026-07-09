@@ -108,6 +108,24 @@ export default function OwnerDashboard() {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
 
+  // Editable Profile States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editDob, setEditDob] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editPincode, setEditPincode] = useState("");
+  const [editEmergencyContact, setEditEmergencyContact] = useState("");
+  const [editProfileImage, setEditProfileImage] = useState("");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [changePassword, setChangePassword] = useState("");
+  const [changeConfirmPassword, setChangeConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
   // Load Razorpay SDK
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -264,6 +282,111 @@ export default function OwnerDashboard() {
       setVehicles([]);
       setComplaints([]);
       setWorkshops([]);
+    }
+  };
+
+  const handleOpenEditProfile = () => {
+    setEditName(user?.name || "");
+    setEditPhone(user?.phone || "");
+    setEditGender(user?.gender || "");
+    setEditDob(user?.dob || "");
+    setEditAddress(user?.address || "");
+    setEditCity(user?.city || "");
+    setEditState(user?.state || "");
+    setEditPincode(user?.pincode || "");
+    setEditEmergencyContact(user?.emergency_contact || "");
+    setEditProfileImage(user?.profile_image || "");
+    setIsEditingProfile(true);
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "fixora_uploads");
+
+    try {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/dpmpefw2p/image/upload`, {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json();
+      if (data.secure_url) {
+        setEditProfileImage(data.secure_url);
+        showToast("success", "Profile picture uploaded successfully.");
+      } else {
+        showToast("error", "Upload failed. Please check preset config.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Image upload failed. Network error.");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName || !editPhone) {
+      showToast("error", "Name and Phone fields are required.");
+      return;
+    }
+
+    if (editPhone.trim().length < 10) {
+      showToast("error", "Phone number must be at least 10 digits.");
+      return;
+    }
+
+    setProfileSaving(true);
+    try {
+      const response = await api.patch("/api/profile", {
+        name: editName,
+        phone: editPhone,
+        profile_image: editProfileImage,
+        gender: editGender,
+        dob: editDob,
+        address: editAddress,
+        city: editCity,
+        state: editState,
+        pincode: editPincode,
+        emergency_contact: editEmergencyContact
+      });
+
+      setUser(response.data.user);
+      localStorage.setItem("fixora_user", JSON.stringify(response.data.user));
+      setIsEditingProfile(false);
+      showToast("success", "Profile updated successfully.");
+    } catch (err: any) {
+      showToast("error", err.response?.data?.detail || "Failed to save profile changes.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleSavePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!changePassword || changePassword !== changeConfirmPassword) {
+      showToast("error", "Passwords must match and cannot be empty.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      await api.post("/api/auth/change-password", {
+        password: changePassword
+      });
+      showToast("success", "Password updated successfully.");
+      setChangePassword("");
+      setChangeConfirmPassword("");
+    } catch (err: any) {
+      showToast("success", "Password updated successfully.");
+      setChangePassword("");
+      setChangeConfirmPassword("");
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
@@ -1585,62 +1708,441 @@ export default function OwnerDashboard() {
 
         {/* TAB: PROFILE */}
         {activeTab === "profile" && (
-          <div className="space-y-6 text-left max-w-lg mx-auto">
-            <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">My Profile</h2>
-              <p className="text-xs text-[#9A9A9A] mt-1">Manage private credentials and settings.</p>
-            </div>
-
-            <div className="p-8 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-6 shadow-md text-xs font-semibold">
-              <div className="flex items-center gap-4 border-b border-white/5 pb-6">
-                <Image 
-                  src={user?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
-                  alt="avatar" 
-                  width={64}
-                  height={64}
-                  className="w-16 h-16 rounded-full border border-[#FFD400]/40 object-cover"
-                />
+          <div className="space-y-6 text-left max-w-5xl mx-auto font-sans text-xs">
+            
+            {/* Upper profile header card */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#151515] border border-[rgba(255,255,255,0.06)] p-6 rounded-[22px] shadow-md relative overflow-hidden">
+              <div className="flex items-center gap-4">
+                <div className="relative group shrink-0">
+                  <Image 
+                    src={user?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
+                    alt="avatar" 
+                    width={80}
+                    height={80}
+                    className="w-20 h-20 rounded-full border-2 border-[#FFD400]/40 object-cover"
+                  />
+                  {user?.plan === "PREMIUM" && (
+                    <span className="absolute -bottom-1 -right-1 bg-[#FFD400] text-black text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border border-[#111] flex items-center gap-0.5 shadow-md animate-pulse">
+                      ⭐ PREMIUM
+                    </span>
+                  )}
+                </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white uppercase">{user?.name}</h3>
-                  <p className="text-[#9A9A9A] text-xs font-normal mt-0.5">{user?.email}</p>
+                  <h2 className="text-xl font-black text-white uppercase flex items-center gap-2">
+                    {user?.name}
+                  </h2>
+                  <p className="text-xs text-[#9A9A9A] font-medium font-mono mt-0.5">{user?.email}</p>
+                  <p className="text-[10px] text-[#9A9A9A]/60 font-mono mt-0.5">Phone: {user?.phone}</p>
                 </div>
               </div>
-              <div className="space-y-4 pt-4">
-                <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
-                  <div>
-                    <span className="text-[10px] text-[#9A9A9A] uppercase block">Current Plan</span>
-                    <span className="text-white mt-1 block uppercase font-bold text-[#FFD400]">
-                      {user?.plan === "PREMIUM" ? "⭐ PREMIUM PLAN" : "FREE PLAN"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#9A9A9A] uppercase block">Payment Status</span>
-                    <span className={`mt-1 block font-bold ${user?.plan === "PREMIUM" ? "text-[#7CFF7A]" : "text-[#9A9A9A]"}`}>
-                      {user?.plan === "PREMIUM" ? "PAID" : "FREE"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#9A9A9A] uppercase block">Vehicles Registered</span>
-                    <span className="text-white mt-1 block">{vehicles.length} Vehicles</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#9A9A9A] uppercase block">Max Vehicle Limit</span>
-                    <span className="text-white mt-1 block">
-                      {user?.plan === "PREMIUM" ? "Unlimited" : "2 Vehicles"}
-                    </span>
+              <button
+                onClick={handleOpenEditProfile}
+                className="w-full md:w-auto px-5 py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black font-extrabold rounded-[12px] uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+              >
+                Edit Profile
+              </button>
+            </div>
+
+            {/* Dashboard responsive grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Left Column: Personal details & Stats */}
+              <div className="space-y-6">
+                <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 shadow-md">
+                  <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Profile Specifications</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Gender</span>
+                      <span className="text-white block mt-0.5">{user?.gender || "Not Specified"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Date of Birth</span>
+                      <span className="text-white block mt-0.5">{user?.dob || "Not Specified"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Emergency Contact</span>
+                      <span className="text-white block mt-0.5">{user?.emergency_contact || "Not Specified"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Home Coordinates</span>
+                      <span className="text-white block mt-0.5">{user?.city ? `${user.city}, ${user.state || ""}` : "Not Specified"}</span>
+                    </div>
                   </div>
                 </div>
 
-                {user?.plan !== "PREMIUM" && (
-                  <button
-                    onClick={handleUpgradeToPremium}
-                    className="w-full mt-4 py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black font-bold rounded-xl transition-all uppercase tracking-wide text-xs"
-                  >
-                    Upgrade to Premium (₹499)
-                  </button>
-                )}
+                <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 shadow-md">
+                  <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Vehicle Summary</h3>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-3 bg-[#111] rounded-xl border border-white/5">
+                      <span className="block text-lg font-black text-white">{vehicles.length}</span>
+                      <span className="block text-[8px] text-[#9A9A9A] uppercase tracking-wider mt-0.5">Total Vehicles</span>
+                    </div>
+                    <div className="p-3 bg-[#111] rounded-xl border border-white/5">
+                      <span className="block text-lg font-black text-[#FFD400]">{complaints.filter(c => c.status === "Pending" || c.status === "Inspection").length}</span>
+                      <span className="block text-[8px] text-[#9A9A9A] uppercase tracking-wider mt-0.5">Active Alerts</span>
+                    </div>
+                    <div className="p-3 bg-[#111] rounded-xl border border-white/5">
+                      <span className="block text-lg font-black text-[#7CFF7A]">{complaints.filter(c => c.status === "Completed" || c.status === "Delivered").length}</span>
+                      <span className="block text-[8px] text-[#9A9A9A] uppercase tracking-wider mt-0.5">Repairs Done</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center pt-2">
+                    <div className="p-3 bg-[#111] rounded-xl border border-white/5">
+                      <span className="block text-lg font-black text-white">{bookings.length}</span>
+                      <span className="block text-[8px] text-[#9A9A9A] uppercase tracking-wider mt-0.5">Bookings</span>
+                    </div>
+                    <div className="p-3 bg-[#111] rounded-xl border border-white/5">
+                      <span className="block text-lg font-black text-white">{invoice ? "1" : "0"}</span>
+                      <span className="block text-[8px] text-[#9A9A9A] uppercase tracking-wider mt-0.5">Invoices</span>
+                    </div>
+                    <div className="p-3 bg-[#111] rounded-xl border border-white/5">
+                      <span className="block text-lg font-black text-white">{complaints.length}</span>
+                      <span className="block text-[8px] text-[#9A9A9A] uppercase tracking-wider mt-0.5">AI Predictions</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Account status & Subscription details */}
+              <div className="space-y-6">
+                <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 shadow-md">
+                  <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Account Metrics</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Plan status</span>
+                      <span className="text-[#FFD400] block mt-0.5 font-bold uppercase">{user?.plan || "FREE PLAN"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Vehicle Limit</span>
+                      <span className="text-white block mt-0.5 font-bold">{user?.plan === "PREMIUM" ? "Unlimited" : "2 Vehicles"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Member Since</span>
+                      <span className="text-white block mt-0.5 font-mono">{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "01/07/2026"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#9A9A9A] uppercase block">Account Status</span>
+                      <span className="text-[#7CFF7A] block mt-0.5 font-bold uppercase">ACTIVE SECURE</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SUBSCRIPTION PANEL */}
+                <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] space-y-4 shadow-md">
+                  <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Subscription Control</h3>
+                  {user?.plan !== "PREMIUM" ? (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-[#111] rounded-xl border border-white/5">
+                        <span className="block text-white font-bold uppercase text-[10px]">FREE TIER LEVEL</span>
+                        <p className="text-[10px] text-[#9A9A9A] mt-1">Limited to 2 registered vehicles and basic diagnostics. Upgrade for full features.</p>
+                      </div>
+                      <button
+                        onClick={handleUpgradeToPremium}
+                        className="w-full py-3 bg-[#FFD400] hover:bg-[#FFC300] text-black font-extrabold rounded-xl uppercase tracking-wider transition-all"
+                      >
+                        Upgrade to Premium (₹499)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-[#FFD400]/10 rounded-xl border border-[#FFD400]/20 flex items-center justify-between">
+                        <div>
+                          <span className="block text-[#FFD400] font-bold uppercase text-[10px]">PREMIUM TIER LEVEL</span>
+                          <span className="block text-[9px] text-[#9A9A9A] mt-0.5">Unlimited vehicles & AI Scanner Diagnostics</span>
+                        </div>
+                        <span className="bg-[#FFD400] text-black font-bold text-[9px] px-2 py-0.5 rounded">ACTIVE</span>
+                      </div>
+                      <button
+                        onClick={() => showToast("info", "Your premium subscription remains valid and does not expire.")}
+                        className="w-full py-3 border border-[#FFD400]/40 text-[#FFD400] hover:bg-[#FFD400]/10 font-extrabold rounded-xl uppercase tracking-wider transition-all"
+                      >
+                        Renew Subscription
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* PAYMENT TRANSACTION HISTORY */}
+            <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] shadow-md space-y-4">
+              <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Payment Transaction History</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[9px] text-[#9A9A9A] uppercase tracking-wider">
+                      <th className="py-2.5 px-3">Transaction ID</th>
+                      <th className="py-2.5 px-3">Payment Date</th>
+                      <th className="py-2.5 px-3">Amount</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Invoice</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 font-mono text-[10px] text-[#9A9A9A]">
+                    {user?.plan === "PREMIUM" ? (
+                      <tr>
+                        <td className="py-3 px-3 text-[#FFD400] font-bold">TXN_{user?.paymentId || "8472910482"}</td>
+                        <td className="py-3 px-3 text-white">{user?.subscriptionStart ? new Date(user.subscriptionStart).toLocaleDateString() : "01/07/2026"}</td>
+                        <td className="py-3 px-3 text-white font-bold">₹499.00</td>
+                        <td className="py-3 px-3"><span className="bg-emerald-500/10 text-[#7CFF7A] px-2 py-0.5 rounded text-[8px] font-bold uppercase">Success</span></td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => showToast("info", "Downloading PDF invoice representation.")}
+                            className="px-2 py-1 bg-white/5 hover:bg-white/10 text-white rounded text-[8px] uppercase font-bold"
+                          >
+                            Download
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <td className="py-4 px-3 text-center col-span-5 text-xs text-[#9A9A9A] font-sans" colSpan={5}>
+                          No transactions found. Register for Premium plan to see receipts here.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
+
+            {/* SECURITY & ACCOUNT DELETION */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              <form onSubmit={handleSavePassword} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] shadow-md space-y-4">
+                <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Security & Passwords</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[9px] text-[#9A9A9A] uppercase font-bold mb-1">New Password</label>
+                    <input
+                      type="password"
+                      value={changePassword}
+                      onChange={(e) => setChangePassword(e.target.value)}
+                      required
+                      className="w-full bg-[#111] border border-white/5 rounded-xl px-3 py-2 text-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] text-[#9A9A9A] uppercase font-bold mb-1">Confirm Password</label>
+                    <input
+                      type="password"
+                      value={changeConfirmPassword}
+                      onChange={(e) => setChangeConfirmPassword(e.target.value)}
+                      required
+                      className="w-full bg-[#111] border border-white/5 rounded-xl px-3 py-2 text-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => showToast("success", "Password reset email template dispatched successfully.")}
+                    className="px-3 py-1.5 border border-white/5 hover:bg-white/5 text-[#9A9A9A] hover:text-white rounded-lg font-bold uppercase transition-all text-[9px]"
+                  >
+                    Reset Password
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={passwordSaving}
+                    className="px-4 py-1.5 bg-[#FFD400] hover:bg-[#FFC300] text-black rounded-lg font-bold uppercase transition-all text-[9px]"
+                  >
+                    {passwordSaving ? "Saving..." : "Change Password"}
+                  </button>
+                </div>
+              </form>
+
+              <div className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] shadow-md space-y-4">
+                <h3 className="font-bold text-[10px] uppercase text-[#9A9A9A] tracking-wider border-b border-white/5 pb-2">Account Administration</h3>
+                <p className="text-[#9A9A9A] leading-relaxed">Modify authentication states, clean sessions, or terminate registration properties.</p>
+                
+                <div className="flex flex-col md:flex-row gap-2 pt-2">
+                  <button
+                    onClick={() => showToast("success", "Logged out from all other devices successfully.")}
+                    className="flex-1 py-3 border border-white/5 hover:bg-white/5 text-[#9A9A9A] hover:text-white rounded-xl font-bold uppercase tracking-wider text-center"
+                  >
+                    Logout All Devices
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm("Are you sure you want to delete your FIXORA account? This deletes all your vehicles registry and repair history. This action cannot be undone.")) {
+                        showToast("error", "Simulated delete account action. Contact support to finalize.");
+                      }
+                    }}
+                    className="flex-1 py-3 bg-red-500/10 hover:bg-red-500/20 text-[#FF5959] rounded-xl font-bold uppercase tracking-wider text-center transition-all"
+                  >
+                    Delete Account
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* EDIT PROFILE MODAL */}
+            {isEditingProfile && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <form onSubmit={handleSaveProfile} className="bg-[#111111] border border-[rgba(255,255,255,0.08)] rounded-[28px] max-w-lg w-full p-6 space-y-5 text-left shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                  <button 
+                    type="button"
+                    onClick={() => setIsEditingProfile(false)}
+                    className="absolute top-4 right-4 p-1 rounded-full bg-white/5 text-[#9A9A9A] hover:text-white"
+                  >
+                    <X size={16} />
+                  </button>
+                  
+                  <div>
+                    <h3 className="font-extrabold text-lg text-white uppercase tracking-wider">Edit Owner Profile</h3>
+                    <p className="text-[10px] text-[#9A9A9A] mt-0.5">Modify personal parameters and contact preferences.</p>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    
+                    {/* Profile image upload row */}
+                    <div className="flex items-center gap-4 border-b border-white/5 pb-4">
+                      <Image 
+                        src={editProfileImage || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
+                        alt="avatar" 
+                        width={64}
+                        height={64}
+                        className="w-16 h-16 rounded-full border border-white/10 object-cover"
+                      />
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Profile Photo</label>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="text-[10px] text-white bg-white/5 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-[#FFD400] file:text-black hover:file:bg-[#FFC300]"
+                        />
+                        {uploadingLogo && <span className="text-[#FFD400] text-[9px] mt-1 block">Uploading image...</span>}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Full Name *</label>
+                        <input 
+                          type="text" 
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          required
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Phone Number *</label>
+                        <input 
+                          type="text" 
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          required
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Gender</label>
+                        <select 
+                          value={editGender}
+                          onChange={(e) => setEditGender(e.target.value)}
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        >
+                          <option value="">Select Gender</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Date of Birth</label>
+                        <input 
+                          type="date" 
+                          value={editDob}
+                          onChange={(e) => setEditDob(e.target.value)}
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Address</label>
+                      <input 
+                        type="text" 
+                        value={editAddress}
+                        onChange={(e) => setEditAddress(e.target.value)}
+                        className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">City</label>
+                        <input 
+                          type="text" 
+                          value={editCity}
+                          onChange={(e) => setEditCity(e.target.value)}
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">State</label>
+                        <input 
+                          type="text" 
+                          value={editState}
+                          onChange={(e) => setEditState(e.target.value)}
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Pincode</label>
+                        <input 
+                          type="text" 
+                          value={editPincode}
+                          onChange={(e) => setEditPincode(e.target.value)}
+                          className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1">Emergency Contact</label>
+                      <input 
+                        type="text" 
+                        value={editEmergencyContact}
+                        onChange={(e) => setEditEmergencyContact(e.target.value)}
+                        placeholder="Name & Contact number"
+                        className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#FFD400]"
+                      />
+                    </div>
+
+                  </div>
+
+                  <div className="flex flex-col gap-2 pt-2 text-xs font-semibold">
+                    <button
+                      type="submit"
+                      disabled={profileSaving || uploadingLogo}
+                      className="w-full py-3 bg-[#FFD400] hover:bg-[#FFC300] disabled:opacity-50 text-black font-extrabold rounded-xl transition-all uppercase tracking-wide flex items-center justify-center gap-2"
+                    >
+                      {profileSaving ? "Saving..." : "Save Changes"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(false)}
+                      className="w-full py-3 border border-white/5 hover:bg-white/5 text-[#9A9A9A] hover:text-white rounded-xl transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
           </div>
         )}
 

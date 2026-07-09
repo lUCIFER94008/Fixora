@@ -75,7 +75,10 @@ export async function PATCH(req: Request) {
       max_daily_bookings,
       slot_duration,
       working_days,
-      notification_settings
+      notification_settings,
+      // Owner Profile Fields
+      gender,
+      dob
     } = body;
 
     const user = await User.findById(tokenUser._id);
@@ -90,6 +93,13 @@ export async function PATCH(req: Request) {
 
     if (name) user.name = name;
     if (phone) user.phone = phone;
+    if (gender !== undefined) user.gender = gender;
+    if (dob !== undefined) user.dob = dob;
+    if (address !== undefined) user.address = address;
+    if (city !== undefined) user.city = city;
+    if (state !== undefined) user.state = state;
+    if (pincode !== undefined) user.pincode = pincode;
+    if (emergency_contact !== undefined) user.emergency_contact = emergency_contact;
     
     const finalImg = profileImage || profile_image;
     if (finalImg) {
