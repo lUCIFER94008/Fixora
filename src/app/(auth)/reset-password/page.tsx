@@ -68,17 +68,20 @@ function ResetPasswordForm() {
   const token = searchParams?.get("token") ?? "";
 
   // Token validation
-  const [tokenStatus, setTokenStatus] = useState<"checking" | "valid" | "invalid">("checking");
+  const [tokenStatus, setTokenStatus] = useState<
+    "checking" | "valid" | "invalid"
+  >("checking");
 
   // Form state
-  const [password,        setPassword]        = useState("");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword,    setShowPassword]    = useState(false);
-  const [showConfirm,     setShowConfirm]     = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Submission state
   const [submitStatus, setSubmitStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [errorMsg,     setErrorMsg]     = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const strength = getStrength(password);
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
@@ -114,6 +117,7 @@ function ResetPasswordForm() {
     }
 
     setSubmitStatus("loading");
+    setLoading(true);
     setErrorMsg("");
 
     try {
@@ -133,6 +137,8 @@ function ResetPasswordForm() {
     } catch {
       setSubmitStatus("error");
       setErrorMsg("Network error. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -268,7 +274,7 @@ function ResetPasswordForm() {
           <Lock className="absolute left-3 top-3.5 text-[#9A9A9A]" size={14} />
           <input
             id="confirm-password"
-            type={showConfirm ? "text" : "password"}
+            type={showConfirmPassword ? "text" : "password"}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
@@ -283,11 +289,11 @@ function ResetPasswordForm() {
           />
           <button
             type="button"
-            onClick={() => setShowConfirm(!showConfirm)}
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
             className="absolute right-3 top-3 text-[#9A9A9A] hover:text-white transition-colors"
             aria-label="Toggle confirm password visibility"
           >
-            {showConfirm ? <EyeOff size={14} /> : <Eye size={14} />}
+            {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
         </div>
         {passwordsMismatch && (
@@ -306,10 +312,10 @@ function ResetPasswordForm() {
       <button
         type="submit"
         id="reset-password-btn"
-        disabled={submitStatus === "loading" || strength < 5 || !passwordsMatch}
+        disabled={loading || strength < 5 || !passwordsMatch}
         className="w-full py-3.5 rounded-[16px] font-bold bg-[#FFD400] text-black hover:bg-[#FFC300] hover:scale-[1.02] transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 uppercase tracking-wider mt-2"
       >
-        {submitStatus === "loading" ? (
+        {loading ? (
           <>
             <Loader2 size={14} className="animate-spin" />
             Updating Password...
