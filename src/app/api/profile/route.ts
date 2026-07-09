@@ -58,7 +58,24 @@ export async function PATCH(req: Request) {
       pincode,
       working_hours,
       services,
-      about
+      about,
+      // Extended Settings Fields
+      emergency_contact,
+      cover_image,
+      experience_years,
+      supported_vehicles,
+      certifications,
+      gst_number,
+      map_location,
+      accept_bookings,
+      auto_accept,
+      enable_chat,
+      enable_ai,
+      enable_reviews,
+      max_daily_bookings,
+      slot_duration,
+      working_days,
+      notification_settings
     } = body;
 
     const user = await User.findById(tokenUser._id);
@@ -95,6 +112,29 @@ export async function PATCH(req: Request) {
         if (working_hours) ws.working_hours = working_hours;
         if (services && Array.isArray(services)) ws.services = services;
         if (about !== undefined) ws.about = about;
+
+        if (emergency_contact !== undefined) ws.emergency_contact = emergency_contact;
+        if (cover_image !== undefined) ws.cover_image = cover_image;
+        if (experience_years !== undefined) ws.experience_years = Number(experience_years);
+        if (supported_vehicles && Array.isArray(supported_vehicles)) ws.supported_vehicles = supported_vehicles;
+        if (certifications && Array.isArray(certifications)) ws.certifications = certifications;
+        if (gst_number !== undefined) ws.gst_number = gst_number;
+        if (map_location !== undefined) ws.map_location = map_location;
+        if (accept_bookings !== undefined) ws.accept_bookings = Boolean(accept_bookings);
+        if (auto_accept !== undefined) ws.auto_accept = Boolean(auto_accept);
+        if (enable_chat !== undefined) ws.enable_chat = Boolean(enable_chat);
+        if (enable_ai !== undefined) ws.enable_ai = Boolean(enable_ai);
+        if (enable_reviews !== undefined) ws.enable_reviews = Boolean(enable_reviews);
+        if (max_daily_bookings !== undefined) ws.max_daily_bookings = Number(max_daily_bookings);
+        if (slot_duration !== undefined) ws.slot_duration = Number(slot_duration);
+        if (working_days && Array.isArray(working_days)) ws.working_days = working_days;
+        
+        if (notification_settings && typeof notification_settings === "object") {
+          ws.notification_settings = {
+            ...ws.notification_settings,
+            ...notification_settings
+          };
+        }
         
         await ws.save();
         updatedWorkshop = ws;

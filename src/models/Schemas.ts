@@ -113,6 +113,29 @@ export interface IWorkshop {
   about?: string;
   latitude?: number;
   longitude?: number;
+  // Extended Settings fields
+  emergency_contact?: string;
+  cover_image?: string;
+  experience_years?: number;
+  supported_vehicles?: string[];
+  certifications?: string[];
+  gst_number?: string;
+  map_location?: string;
+  accept_bookings?: boolean;
+  auto_accept?: boolean;
+  enable_chat?: boolean;
+  enable_ai?: boolean;
+  enable_reviews?: boolean;
+  max_daily_bookings?: number;
+  slot_duration?: number;
+  working_days?: string[];
+  notification_settings?: {
+    email: boolean;
+    sms: boolean;
+    booking: boolean;
+    complaint: boolean;
+    chat: boolean;
+  };
   created_at?: Date;
 }
 
@@ -134,6 +157,29 @@ const WorkshopSchema = new Schema<IWorkshop>({
   about: { type: String, default: "" },
   latitude: { type: Number, default: 18.5204 },
   longitude: { type: Number, default: 73.8567 },
+  // Settings default values
+  emergency_contact: { type: String, default: "" },
+  cover_image: { type: String, default: "" },
+  experience_years: { type: Number, default: 0 },
+  supported_vehicles: [{ type: String }],
+  certifications: [{ type: String }],
+  gst_number: { type: String, default: "" },
+  map_location: { type: String, default: "" },
+  accept_bookings: { type: Boolean, default: true },
+  auto_accept: { type: Boolean, default: false },
+  enable_chat: { type: Boolean, default: true },
+  enable_ai: { type: Boolean, default: true },
+  enable_reviews: { type: Boolean, default: true },
+  max_daily_bookings: { type: Number, default: 10 },
+  slot_duration: { type: Number, default: 60 },
+  working_days: [{ type: String, default: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] }],
+  notification_settings: {
+    email: { type: Boolean, default: true },
+    sms: { type: Boolean, default: true },
+    booking: { type: Boolean, default: true },
+    complaint: { type: Boolean, default: true },
+    chat: { type: Boolean, default: true }
+  },
   created_at: { type: Date, default: Date.now }
 });
 
