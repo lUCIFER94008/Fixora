@@ -402,3 +402,48 @@ const MessageSchema = new Schema<IMessage>({
 export const Message: Model<IMessage> = 
   mongoose.models.Message || 
   mongoose.model<IMessage>("Message", MessageSchema);
+
+// --- Booking Schema ---
+export interface IBooking {
+  bookingId: string;
+  ownerId: string;
+  ownerName: string;
+  ownerPhone: string;
+  ownerEmail: string;
+  vehicleId: string;
+  vehicleName: string;
+  workshopId: string;
+  workshopName: string;
+  complaintId?: string;
+  bookingDate: Date;
+  preferredDate: string;
+  preferredTime: string;
+  notes?: string;
+  status: "Pending" | "Accepted" | "Rejected" | "Completed" | "Cancelled";
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const BookingSchema = new Schema<IBooking>({
+  bookingId: { type: String, required: true, unique: true, index: true },
+  ownerId: { type: String, required: true, index: true },
+  ownerName: { type: String, required: true },
+  ownerPhone: { type: String, required: true },
+  ownerEmail: { type: String, required: true },
+  vehicleId: { type: String, required: true },
+  vehicleName: { type: String, required: true },
+  workshopId: { type: String, required: true, index: true },
+  workshopName: { type: String, required: true },
+  complaintId: { type: String },
+  bookingDate: { type: Date, default: Date.now },
+  preferredDate: { type: String, required: true },
+  preferredTime: { type: String, required: true },
+  notes: { type: String },
+  status: { type: String, enum: ["Pending", "Accepted", "Rejected", "Completed", "Cancelled"], default: "Pending" }
+}, {
+  timestamps: true
+});
+
+export const Booking: Model<IBooking> = 
+  mongoose.models.Booking || 
+  mongoose.model<IBooking>("Booking", BookingSchema);

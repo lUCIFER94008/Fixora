@@ -96,6 +96,18 @@ export default function OwnerDashboard() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [processingUpgrade, setProcessingUpgrade] = useState(false);
 
+  // Real Booking States
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingWorkshop, setBookingWorkshop] = useState<any>(null);
+  const [bookingPreferredDate, setBookingPreferredDate] = useState("");
+  const [bookingPreferredTime, setBookingPreferredTime] = useState("10:00 AM");
+  const [bookingNotes, setBookingNotes] = useState("");
+  const [bookingVehicleId, setBookingVehicleId] = useState("");
+  const [bookingService, setBookingService] = useState("");
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+
   // Load Razorpay SDK
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -163,7 +175,7 @@ export default function OwnerDashboard() {
   };
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom, sendMessage } = useChat({
+  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom, sendMessage, socket } = useChat({
     userId: user?._id,
     onMessageReceived: (message) => {
       const isActiveRoom = message.complaintId === chatRoomId;
@@ -201,6 +213,21 @@ export default function OwnerDashboard() {
     }
   }, [chatRoomId, joinRoom, leaveRoom]);
 
+  // Handle socket updates for bookings
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleBookingStatusUpdate = (updatedBooking: any) => {
+      setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+      showToast("info", `Booking ${updatedBooking.bookingId} status updated to ${updatedBooking.status}!`);
+    };
+
+    socket.on("BOOKING_STATUS_UPDATE", handleBookingStatusUpdate);
+    return () => {
+      socket.off("BOOKING_STATUS_UPDATE", handleBookingStatusUpdate);
+    };
+  }, [socket]);
+
 
   // Authenticate user session
   // Load session and dashboard datasets from MongoDB
@@ -223,6 +250,14 @@ export default function OwnerDashboard() {
         const found = complaints.find((c: any) => activeComplaint && c._id === activeComplaint._id) || complaints[0];
         setActiveComplaint(found);
         fetchInvoiceForComplaint(found._id);
+      }
+
+      // Fetch bookings list
+      try {
+        const bookingsRes = await api.get("/api/bookings");
+        setBookings(bookingsRes.data || []);
+      } catch (e) {
+        console.error("Failed to load bookings:", e);
       }
     } catch (err) {
       console.error("Failed to load dashboard owner data:", err);
@@ -421,17 +456,22 @@ export default function OwnerDashboard() {
       });
       
       await fetchDashboardData();
-      alert("AI Analysis complete! Complaint submitted successfully.");
+      showToast("success", "AI Analysis complete! Complaint submitted successfully.");
       setActiveTab("complaints");
       // Reset form fields
       setComplaintTitle("");
       setComplaintDesc("");
       setComplaintImages([]);
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to submit complaint. Please check fields.");
+      showToast("error", err.response?.data?.detail || "Failed to submit complaint. Please check fields.");
     } finally {
       setSubmittingComplaint(false);
     }
+  };
+
+  const showToast = (type: "success" | "error" | "info", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 5000);
   };
 
   const handlePayInvoice = async () => {
@@ -439,14 +479,63 @@ export default function OwnerDashboard() {
     setPaymentLoading(true);
     try {
       await api.post(`/api/complaints/${activeComplaint._id}/pay`);
-      alert("Payment processed! Auto repair closed.");
+      showToast("success", "Payment processed! Auto repair closed.");
       fetchDashboardData();
       setInvoice((prev: any) => prev ? { ...prev, status: "Paid" } : null);
     } catch {
-      alert("Simulated payment success.");
+      showToast("success", "Simulated payment success.");
       setInvoice((prev: any) => prev ? { ...prev, status: "Paid" } : null);
     } finally {
       setPaymentLoading(false);
+    }
+  };
+
+  const handleOpenBookingModal = (workshop: any) => {
+    setBookingWorkshop(workshop);
+    setBookingVehicleId(vehicles[0]?._id || "");
+    setBookingService(workshop.services?.[0] || "General Diagnostics");
+    setBookingPreferredDate(new Date(Date.now() + 86400000).toISOString().split("T")[0]); // tomorrow
+    setBookingPreferredTime("10:00 AM");
+    setBookingNotes("");
+    setShowBookingModal(true);
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!bookingWorkshop || !bookingVehicleId) {
+      showToast("error", "Please select a vehicle to book service.");
+      return;
+    }
+    setBookingLoading(true);
+    try {
+      const response = await api.post("/api/bookings", {
+        vehicleId: bookingVehicleId,
+        workshopId: bookingWorkshop._id,
+        preferredDate: bookingPreferredDate,
+        preferredTime: bookingPreferredTime,
+        notes: bookingNotes
+      });
+      
+      setBookings(prev => [response.data, ...prev]);
+      setShowBookingModal(false);
+      showToast("success", "Booking created successfully.");
+      setActiveTab("bookings");
+      
+      // Notify details via WebSocket presence
+      if (socket) {
+        socket.emit("sendMessage", {
+          roomId: "general",
+          message: `🛠️ New Service Booking Request ${response.data.bookingId} submitted for preferred date ${bookingPreferredDate}.`,
+          senderId: user?._id,
+          receiverId: bookingWorkshop.owner_id?._id || bookingWorkshop.owner_id || bookingWorkshop._id,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      fetchDashboardData();
+    } catch (err: any) {
+      showToast("error", err.response?.data?.detail || "Failed to create booking.");
+    } finally {
+      setBookingLoading(false);
     }
   };
 
@@ -648,6 +737,7 @@ export default function OwnerDashboard() {
             {[
               { id: "garage", label: "My Vehicles", icon: <Car size={14} /> },
               { id: "complaints", label: "Vehicle Complaints", icon: <AlertTriangle size={14} /> },
+              { id: "bookings", label: "My Bookings", icon: <Clock size={14} /> },
               { id: "history", label: "Repair History", icon: <Activity size={14} /> },
               { id: "diagnostics", label: "AI Diagnosis", icon: <Sparkles size={14} className="text-[#FFD400]" /> },
               { id: "invoices", label: "Invoices", icon: <CreditCard size={14} /> },
@@ -1219,6 +1309,95 @@ export default function OwnerDashboard() {
           </div>
         )}
 
+        {/* TAB: MY BOOKINGS */}
+        {activeTab === "bookings" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">My Service Bookings</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Track and manage your scheduled service booking requests.</p>
+            </div>
+
+            <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[#9A9A9A] uppercase tracking-wider text-[9px] font-bold">
+                      <th className="py-3 px-4">Booking ID</th>
+                      <th className="py-3 px-4">Workshop</th>
+                      <th className="py-3 px-4">Vehicle</th>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Time</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bookings.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-[#9A9A9A] text-xs">
+                          {"No service bookings found. Click \"Nearby Workshops\" to book slot!"}
+                        </td>
+                      </tr>
+                    ) : (
+                      bookings.map((b) => (
+                        <tr key={b._id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 font-mono font-bold text-[#FFD400]">{b.bookingId}</td>
+                          <td className="py-4 px-4 text-white font-bold">{b.workshopName}</td>
+                          <td className="py-4 px-4 text-[#9A9A9A]">{b.vehicleName}</td>
+                          <td className="py-4 px-4 text-white">{b.preferredDate}</td>
+                          <td className="py-4 px-4 text-[#9A9A9A]">{b.preferredTime}</td>
+                          <td className="py-4 px-4">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              b.status === "Pending" ? "bg-amber-500/10 text-amber-500" :
+                              b.status === "Accepted" ? "bg-emerald-500/10 text-[#7CFF7A]" :
+                              b.status === "Completed" ? "bg-blue-500/10 text-blue-400" :
+                              "bg-red-500/10 text-[#FF5959]"
+                            }`}>
+                              {b.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex gap-2 justify-end">
+                              <button 
+                                onClick={() => {
+                                  const wsObj = workshops.find(w => w._id === b.workshopId || w.name === b.workshopName);
+                                  if (wsObj) handleSelectWorkshopChat(wsObj, b.complaintId);
+                                  else handleSelectWorkshopChat({ _id: b.workshopId, name: b.workshopName }, b.complaintId);
+                                }}
+                                className="px-3 py-1.5 bg-[#FFD400]/10 hover:bg-[#FFD400]/20 text-[#FFD400] rounded-xl text-[10px] font-bold uppercase transition-all"
+                              >
+                                Chat
+                              </button>
+                              {b.status === "Pending" && (
+                                <button 
+                                  onClick={async () => {
+                                    if (confirm("Are you sure you want to cancel this booking?")) {
+                                      try {
+                                        const response = await api.post(`/api/bookings/${b._id}/status`, { status: "Cancelled" });
+                                        setBookings(prev => prev.map(item => item._id === b._id ? response.data : item));
+                                        showToast("success", "Booking cancelled successfully.");
+                                      } catch (err: any) {
+                                        showToast("error", err.response?.data?.detail || "Failed to cancel booking.");
+                                      }
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-[#FF5959] rounded-xl text-[10px] font-bold uppercase transition-all"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB: AI DIAGNOSIS */}
         {activeTab === "diagnostics" && (
           <div className="space-y-6 text-left">
@@ -1391,9 +1570,7 @@ export default function OwnerDashboard() {
                         Contact
                       </a>
                       <button 
-                        onClick={() => {
-                          alert(`Service slot booked with ${w.name}! A team coordinator will text confirmation coordinates to ${user?.phone}.`);
-                        }}
+                        onClick={() => handleOpenBookingModal(w)}
                         className="py-2 border border-white/5 hover:border-white/20 text-[#9A9A9A] hover:text-white rounded-[12px] text-[9px] font-bold uppercase transition-all"
                       >
                         Book Service
@@ -1709,6 +1886,124 @@ export default function OwnerDashboard() {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* BOOKING MODAL */}
+        {showBookingModal && bookingWorkshop && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-[#111111] border border-[rgba(255,255,255,0.08)] rounded-[28px] max-w-md w-full p-6 space-y-6 text-left shadow-2xl relative">
+              <button 
+                onClick={() => setShowBookingModal(false)}
+                className="absolute top-4 right-4 p-1 rounded-full bg-white/5 text-[#9A9A9A] hover:text-white"
+              >
+                <X size={16} />
+              </button>
+              
+              <div>
+                <h3 className="font-extrabold text-lg text-white uppercase tracking-wider">Book Service Slot</h3>
+                <p className="text-[10px] text-[#9A9A9A] mt-0.5">Scheduling service with {bookingWorkshop.name}</p>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1.5">Select Vehicle</label>
+                  <select 
+                    value={bookingVehicleId}
+                    onChange={(e) => setBookingVehicleId(e.target.value)}
+                    className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FFD400]"
+                  >
+                    {vehicles.map((v) => (
+                      <option key={v._id} value={v._id}>{v.make} {v.model} ({v.license_plate})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1.5">Service Required</label>
+                  <select 
+                    value={bookingService}
+                    onChange={(e) => setBookingService(e.target.value)}
+                    className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FFD400]"
+                  >
+                    {(bookingWorkshop.services || ["General Diagnostics", "Scheduled Maintenance", "Electrical Tuning"]).map((s: string, idx: number) => (
+                      <option key={idx} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1.5">Preferred Date</label>
+                    <input 
+                      type="date" 
+                      value={bookingPreferredDate}
+                      onChange={(e) => setBookingPreferredDate(e.target.value)}
+                      className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FFD400]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1.5">Preferred Time</label>
+                    <select 
+                      value={bookingPreferredTime}
+                      onChange={(e) => setBookingPreferredTime(e.target.value)}
+                      className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FFD400]"
+                    >
+                      <option value="09:00 AM">09:00 AM</option>
+                      <option value="10:00 AM">10:00 AM</option>
+                      <option value="11:00 AM">11:00 AM</option>
+                      <option value="12:00 PM">12:00 PM</option>
+                      <option value="01:00 PM">01:00 PM</option>
+                      <option value="02:00 PM">02:00 PM</option>
+                      <option value="03:00 PM">03:00 PM</option>
+                      <option value="04:00 PM">04:00 PM</option>
+                      <option value="05:00 PM">05:00 PM</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-[#9A9A9A] uppercase font-bold mb-1.5">Special Instructions / Notes</label>
+                  <textarea 
+                    value={bookingNotes}
+                    onChange={(e) => setBookingNotes(e.target.value)}
+                    placeholder="Describe symptoms, requested parts, or special instructions..."
+                    rows={3}
+                    className="w-full bg-[#151515] border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#FFD400] resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2 text-xs font-semibold">
+                <button
+                  onClick={handleConfirmBooking}
+                  disabled={bookingLoading}
+                  className="w-full py-3 bg-[#FFD400] hover:bg-[#FFC300] disabled:opacity-50 text-black font-extrabold rounded-xl transition-all uppercase tracking-wide flex items-center justify-center gap-2"
+                >
+                  {bookingLoading ? "Booking..." : "Confirm Booking"}
+                </button>
+                <button
+                  onClick={() => setShowBookingModal(false)}
+                  className="w-full py-3 border border-white/5 hover:bg-white/5 text-[#9A9A9A] hover:text-white rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Toast notifications */}
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <div className={`p-4 rounded-2xl border shadow-xl flex items-center gap-3 text-xs ${
+              toast.type === "success" ? "bg-emerald-950/80 border-emerald-500/30 text-[#7CFF7A]" :
+              toast.type === "error" ? "bg-red-950/80 border-red-500/30 text-[#FF5959]" :
+              "bg-zinc-900/80 border-[#FFD400]/30 text-white"
+            }`}>
+              <CheckCircle2 size={16} className={toast.type === "success" ? "text-[#7CFF7A]" : "text-[#FFD400]"} />
+              <span className="font-bold uppercase tracking-wider">{toast.message}</span>
             </div>
           </div>
         )}

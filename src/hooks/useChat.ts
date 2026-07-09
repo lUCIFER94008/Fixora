@@ -324,5 +324,6 @@ export function useChat({
     sendTyping,
     sendSeen,
     sendMessage,
+    socket: socketRef.current,
   };
 }

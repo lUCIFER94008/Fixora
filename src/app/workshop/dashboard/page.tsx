@@ -80,6 +80,10 @@ export default function WorkshopDashboard() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [metrics, setMetrics] = useState<any>(null);
 
+  // Real Booking States
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [toast, setToast] = useState<{ type: "success" | "error" | "info" | "warning"; message: string } | null>(null);
+
   const fetchWorkshopDashboardData = async () => {
     try {
       const response = await api.get("/api/dashboard/workshop");
@@ -94,6 +98,14 @@ export default function WorkshopDashboard() {
         setTechNotes(found.technician_notes || "");
         setRepairCost(found.estimated_cost || 0);
         setRepairCompletion(found.estimated_completion || "1 Day");
+      }
+
+      // Fetch bookings list
+      try {
+        const bookingsRes = await api.get("/api/bookings");
+        setBookings(bookingsRes.data || []);
+      } catch (e) {
+        console.error("Failed to load bookings:", e);
       }
     } catch (err) {
       console.error("Failed to load workshop dashboard:", err);
@@ -134,7 +146,7 @@ export default function WorkshopDashboard() {
   }, [user]);
 
   // Websocket hook
-  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom, sendMessage } = useChat({
+  const { isConnected, sendTyping, sendSeen, joinRoom, leaveRoom, sendMessage, socket } = useChat({
     userId: user?._id,
     onMessageReceived: (message) => {
       const isActiveRoom = message.complaintId === chatRoomId;
@@ -174,6 +186,32 @@ export default function WorkshopDashboard() {
       };
     }
   }, [chatRoomId, joinRoom, leaveRoom]);
+
+  // Handle socket updates for bookings
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleNewBooking = (booking: any) => {
+      setBookings(prev => {
+        if (prev.some(b => b._id === booking._id)) return prev;
+        return [booking, ...prev];
+      });
+      showToast("warning", `New Service Booking request ${booking.bookingId} received!`);
+    };
+
+    const handleBookingStatusUpdate = (updatedBooking: any) => {
+      setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+      showToast("info", `Booking ${updatedBooking.bookingId} status updated to ${updatedBooking.status}!`);
+    };
+
+    socket.on("NEW_BOOKING", handleNewBooking);
+    socket.on("BOOKING_STATUS_UPDATE", handleBookingStatusUpdate);
+    
+    return () => {
+      socket.off("NEW_BOOKING", handleNewBooking);
+      socket.off("BOOKING_STATUS_UPDATE", handleBookingStatusUpdate);
+    };
+  }, [socket]);
 
   const fetchComplaintsQueue = async (wsId?: string) => {
     try {
@@ -269,10 +307,10 @@ export default function WorkshopDashboard() {
         estimated_completion: repairCompletion || undefined,
         repair_image: repairImage || undefined
       });
-      alert(`Job status updated to ${statusStr}`);
+      showToast("success", `Job status updated to ${statusStr}`);
       await fetchWorkshopDashboardData();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to update job status.");
+      showToast("error", err.response?.data?.detail || "Failed to update job status.");
     }
   };
 
@@ -316,10 +354,10 @@ export default function WorkshopDashboard() {
         items: invoiceItems,
         discount: discount
       });
-      alert("Billing Invoice created and dispatched to customer.");
+      showToast("success", "Billing Invoice created and dispatched to customer.");
       setActiveTab("repairs");
     } catch {
-      alert("Simulated Invoice generated successfully.");
+      showToast("success", "Simulated Invoice generated successfully.");
       setActiveTab("repairs");
     } finally {
       setInvoiceLoading(false);
@@ -351,6 +389,35 @@ export default function WorkshopDashboard() {
       } catch {
         setChatMessages([]);
       }
+    }
+  };
+
+  const showToast = (type: "success" | "error" | "info" | "warning", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleUpdateBookingStatus = async (bookingId: string, newStatus: string) => {
+    try {
+      const response = await api.post(`/api/bookings/${bookingId}/status`, { status: newStatus });
+      setBookings(prev => prev.map(b => b._id === bookingId ? response.data : b));
+      showToast("success", `Booking status updated to ${newStatus} successfully.`);
+      
+      // Notify details via WebSocket presence
+      if (socket) {
+        const booking = response.data;
+        socket.emit("sendMessage", {
+          roomId: "general",
+          message: `⚙️ Service Booking ${booking.bookingId} status updated to ${newStatus}.`,
+          senderId: user?._id,
+          receiverId: booking.ownerId,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      fetchWorkshopDashboardData();
+    } catch (err: any) {
+      showToast("error", err.response?.data?.detail || "Failed to update booking status.");
     }
   };
 
@@ -520,6 +587,7 @@ export default function WorkshopDashboard() {
               { id: "dashboard", label: "Dashboard", icon: <Layers size={14} /> },
               { id: "complaints", label: "Complaints", icon: <AlertTriangle size={14} /> },
               { id: "repairs", label: "Repair Requests", icon: <Wrench size={14} /> },
+              { id: "bookings", label: "Repair Bookings", icon: <Clock size={14} /> },
               { id: "customers", label: "Customers", icon: <Users size={14} /> },
               { id: "vehicles", label: "Vehicles", icon: <Car size={14} /> },
               { id: "diagnostics", label: "AI Diagnostics", icon: <Sparkles size={14} /> },
@@ -1118,6 +1186,115 @@ export default function WorkshopDashboard() {
           </div>
         )}
 
+        {/* TAB: REPAIR BOOKINGS */}
+        {activeTab === "bookings" && (
+          <div className="space-y-6 text-left">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight">Repair Booking Requests</h2>
+              <p className="text-xs text-[#9A9A9A] mt-1">Review, accept, or update scheduling requests from customers.</p>
+            </div>
+
+            <div className="p-6 bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[#9A9A9A] uppercase tracking-wider text-[9px] font-bold">
+                      <th className="py-3 px-4">Booking ID</th>
+                      <th className="py-3 px-4">Customer</th>
+                      <th className="py-3 px-4">Vehicle</th>
+                      <th className="py-3 px-4">Contact</th>
+                      <th className="py-3 px-4">Preferred Slot</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Notes</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bookings.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-[#9A9A9A] text-xs">
+                          No repair bookings found in your queue.
+                        </td>
+                      </tr>
+                    ) : (
+                      bookings.map((b) => (
+                        <tr key={b._id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-4 font-mono font-bold text-[#FFD400]">{b.bookingId}</td>
+                          <td className="py-4 px-4 text-white font-bold">{b.ownerName}</td>
+                          <td className="py-4 px-4 text-[#9A9A9A]">{b.vehicleName}</td>
+                          <td className="py-4 px-4 font-mono">
+                            <span className="block text-white">{b.ownerPhone}</span>
+                            <span className="block text-[10px] text-[#9A9A9A]">{b.ownerEmail}</span>
+                          </td>
+                          <td className="py-4 px-4 text-white">
+                            <span className="block font-bold">{b.preferredDate}</span>
+                            <span className="block text-[10px] text-[#9A9A9A]">{b.preferredTime}</span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              b.status === "Pending" ? "bg-amber-500/10 text-amber-500" :
+                              b.status === "Accepted" ? "bg-emerald-500/10 text-[#7CFF7A]" :
+                              b.status === "Completed" ? "bg-blue-500/10 text-blue-400" :
+                              "bg-red-500/10 text-[#FF5959]"
+                            }`}>
+                              {b.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-[#9A9A9A] max-w-[150px] truncate">{b.notes || "None"}</td>
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex gap-2 justify-end">
+                              <button 
+                                onClick={() => handleSelectCustomerChat(b.ownerId, b.complaintId)}
+                                className="px-2.5 py-1.5 bg-[#FFD400]/10 hover:bg-[#FFD400]/20 text-[#FFD400] rounded-xl text-[10px] font-bold uppercase transition-all"
+                              >
+                                Chat
+                              </button>
+                              
+                              {b.status === "Pending" && (
+                                <>
+                                  <button 
+                                    onClick={() => handleUpdateBookingStatus(b._id, "Accepted")}
+                                    className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-[#7CFF7A] rounded-xl text-[10px] font-bold uppercase transition-all"
+                                  >
+                                    Accept
+                                  </button>
+                                  <button 
+                                    onClick={() => handleUpdateBookingStatus(b._id, "Rejected")}
+                                    className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-[#FF5959] rounded-xl text-[10px] font-bold uppercase transition-all"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+
+                              {b.status === "Accepted" && (
+                                <>
+                                  <button 
+                                    onClick={() => handleUpdateBookingStatus(b._id, "Completed")}
+                                    className="px-2.5 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-xl text-[10px] font-bold uppercase transition-all"
+                                  >
+                                    Complete
+                                  </button>
+                                  <button 
+                                    onClick={() => handleUpdateBookingStatus(b._id, "Cancelled")}
+                                    className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-[#FF5959] rounded-xl text-[10px] font-bold uppercase transition-all"
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB: VEHICLES */}
         {activeTab === "vehicles" && (
           <div className="space-y-6 text-left">
@@ -1462,6 +1639,21 @@ export default function WorkshopDashboard() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* Toast notifications */}
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <div className={`p-4 rounded-2xl border shadow-xl flex items-center gap-3 text-xs ${
+              toast.type === "success" ? "bg-emerald-950/80 border-emerald-500/30 text-[#7CFF7A]" :
+              toast.type === "error" ? "bg-red-950/80 border-red-500/30 text-[#FF5959]" :
+              toast.type === "warning" ? "bg-amber-950/80 border-amber-500/30 text-amber-400" :
+              "bg-zinc-900/80 border-[#FFD400]/30 text-white"
+            }`}>
+              <CheckCircle2 size={16} className={toast.type === "success" ? "text-[#7CFF7A]" : "text-[#FFD400]"} />
+              <span className="font-bold uppercase tracking-wider">{toast.message}</span>
+            </div>
           </div>
         )}
 
