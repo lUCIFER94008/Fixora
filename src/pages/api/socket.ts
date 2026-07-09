@@ -77,6 +77,7 @@ const socketHandler = (req: NextApiRequest, res: any) => {
         io.to(roomId).emit("receive-message", data);
         io.to(roomId).emit("NEW_MESSAGE", { message: data });
         io.to(roomId).emit("newMessage", data);
+        io.to(roomId).emit("new-message", data);
       }
       // Direct user fallbacks
       if (data.receiverId || data.receiver_id) {
@@ -84,6 +85,7 @@ const socketHandler = (req: NextApiRequest, res: any) => {
         io.to(receiver).emit("NEW_MESSAGE", { message: data });
         io.to(receiver).emit("receive-message", data);
         io.to(receiver).emit("newMessage", data);
+        io.to(receiver).emit("new-message", data);
       }
     });
 
@@ -91,12 +93,14 @@ const socketHandler = (req: NextApiRequest, res: any) => {
       const roomId = data.roomId || data.complaintId;
       if (roomId) {
         io.to(roomId.toString()).emit("newMessage", data);
+        io.to(roomId.toString()).emit("new-message", data);
         io.to(roomId.toString()).emit("receive-message", data);
         io.to(roomId.toString()).emit("NEW_MESSAGE", { message: data });
       }
       if (data.receiverId || data.receiver_id) {
         const receiver = (data.receiverId || data.receiver_id).toString();
         io.to(receiver).emit("newMessage", data);
+        io.to(receiver).emit("new-message", data);
         io.to(receiver).emit("receive-message", data);
         io.to(receiver).emit("NEW_MESSAGE", { message: data });
       }

@@ -61,11 +61,15 @@ export async function POST(req: Request) {
       // Broadcast to room channel
       io.to(activeRoomId).emit("receive-message", populatedMsg);
       io.to(activeRoomId).emit("NEW_MESSAGE", { message: populatedMsg });
+      io.to(activeRoomId).emit("newMessage", populatedMsg);
+      io.to(activeRoomId).emit("new-message", populatedMsg);
 
       // Direct fallback notifications
       if (receiverId) {
         io.to(receiverId.toString()).emit("NEW_MESSAGE", { message: populatedMsg });
         io.to(receiverId.toString()).emit("receive-message", populatedMsg);
+        io.to(receiverId.toString()).emit("newMessage", populatedMsg);
+        io.to(receiverId.toString()).emit("new-message", populatedMsg);
       }
     }
 

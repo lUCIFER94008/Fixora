@@ -97,6 +97,13 @@ export function useChat({
       });
 
       // ── Message Listeners ──
+      socket.on("new-message", (data: any) => {
+        log("new-message event received:", data);
+        if (onMessageReceivedRef.current) {
+          onMessageReceivedRef.current(data.message || data);
+        }
+      });
+
       socket.on("newMessage", (data: any) => {
         log("newMessage event received:", data);
         if (onMessageReceivedRef.current) {
