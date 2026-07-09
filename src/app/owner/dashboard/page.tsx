@@ -206,7 +206,8 @@ export default function OwnerDashboard() {
   // Load session and dashboard datasets from MongoDB
   const fetchDashboardData = async () => {
     try {
-      const response = await api.get("/api/dashboard/owner");
+      const query = latitude && longitude ? `?lat=${latitude}&lng=${longitude}` : "";
+      const response = await api.get(`/api/dashboard/owner${query}`);
       const { vehicles, complaints, invoices, workshops } = response.data;
       setVehicles(vehicles || []);
       setComplaints(complaints || []);
@@ -276,6 +277,17 @@ export default function OwnerDashboard() {
         const lng = position.coords.longitude;
         setLatitude(lat);
         setLongitude(lng);
+
+        // Fetch sorted dashboard data immediately using the coordinates
+        try {
+          const resDashboard = await api.get(`/api/dashboard/owner?lat=${lat}&lng=${lng}`);
+          const { vehicles, complaints, invoices, workshops } = resDashboard.data;
+          setVehicles(vehicles || []);
+          setComplaints(complaints || []);
+          setWorkshops(workshops || []);
+        } catch (err) {
+          console.error("Failed to load dashboard owner data on geocoding:", err);
+        }
 
         try {
           const response = await fetch(
@@ -1286,102 +1298,110 @@ export default function OwnerDashboard() {
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {workshops.map((w) => (
-                <div key={w._id} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] hover:border-[#FFD400] transition-all flex flex-col justify-between shadow-md relative overflow-hidden text-xs">
-                  
-                  {/* Top Header Card */}
-                  <div className="flex gap-4 items-start">
-                    <Image 
-                      src={w.owner_id?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
-                      alt="logo" 
-                      width={48}
-                      height={48}
-                      className="w-12 h-12 rounded-full border border-white/10 object-cover"
-                    />
-                    <div className="flex-1 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="text-base font-bold text-white uppercase">{w.name}</h3>
-                        {w.is_verified && (
-                          <span className="bg-[#FFD400]/10 text-[#FFD400] text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border border-[#FFD400]/20 flex items-center gap-0.5">
-                            ✓ VERIFIED
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-[#9A9A9A] font-medium font-mono mt-0.5">Owner: {w.owner_id?.name || "Network Manager"}</p>
-                    </div>
-                  </div>
-
-                  {/* Body Details */}
-                  <div className="grid grid-cols-2 gap-3 mt-5 text-left border-t border-b border-white/5 py-4">
-                    <div>
-                      <span className="text-[9px] text-[#9A9A9A] block uppercase">Address</span>
-                      <span className="font-semibold text-white">{w.address}, {w.city || "Pune"}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] text-[#9A9A9A] block uppercase">Working Hours</span>
-                      <span className="font-semibold text-white">{w.working_hours || "9:00 AM - 7:00 PM"}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] text-[#9A9A9A] block uppercase">Contact Coordinates</span>
-                      <span className="font-semibold text-white">{w.phone}</span>
-                      <span className="block text-[10px] text-[#9A9A9A]">{w.owner_id?.email}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] text-[#9A9A9A] block uppercase">Network Status</span>
-                      <span className="text-[#7CFF7A] font-bold uppercase">{w.current_status || "OPEN"}</span>
-                    </div>
-                  </div>
-
-                  {/* Services Tag array */}
-                  {w.services && w.services.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-4 justify-start">
-                      {w.services.map((srv: string, idx: number) => (
-                        <span key={idx} className="bg-white/5 text-[#9A9A9A] text-[9px] font-medium px-2 py-0.5 rounded-full border border-white/10">
-                          {srv}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Rating display */}
-                  <div className="flex items-center gap-1 mt-4 text-[11px] font-bold text-[#FFD400]">
-                    ⭐ {w.rating || 5.0} / 5.0 Network Rating ({w.review_count || 0} reviews)
-                  </div>
-
-                  {/* Card Actions Footer */}
-                  <div className="grid grid-cols-2 gap-2 mt-6">
-                    <button 
-                      onClick={() => handleSelectWorkshopChat(w)}
-                      className="py-2.5 border border-white/5 hover:border-[#FFD400] hover:bg-[#FFD400]/10 text-white rounded-[12px] text-[10px] font-bold uppercase transition-all"
-                    >
-                      Discuss Issue
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setSelectedWorkshop(w._id);
-                        setActiveTab("create-complaint");
-                      }}
-                      className="py-2.5 bg-[#FFD400] text-black hover:bg-[#FFC300] rounded-[12px] text-[10px] font-bold uppercase transition-all"
-                    >
-                      Create Complaint
-                    </button>
-                    <a 
-                      href={`tel:${w.phone}`}
-                      className="py-2 text-center border border-white/5 hover:border-white/20 text-[#9A9A9A] hover:text-white rounded-[12px] text-[9px] font-bold uppercase transition-all"
-                    >
-                      Contact
-                    </a>
-                    <button 
-                      onClick={() => {
-                        alert(`Service slot booked with ${w.name}! A team coordinator will text confirmation coordinates to ${user?.phone}.`);
-                      }}
-                      className="py-2 border border-white/5 hover:border-white/20 text-[#9A9A9A] hover:text-white rounded-[12px] text-[9px] font-bold uppercase transition-all"
-                    >
-                      Book Service
-                    </button>
-                  </div>
+              {workshops.length === 0 ? (
+                <div className="col-span-full py-12 text-center bg-[#151515] border border-[rgba(255,255,255,0.06)] rounded-[22px] p-8 space-y-4">
+                  <h3 className="text-base font-bold text-white">No workshops available</h3>
+                  <p className="text-xs text-[#9A9A9A]">There are currently no verified workshops in your area.</p>
+                  <p className="text-[10px] text-[#9A9A9A]/60">Register a workshop or check back later.</p>
                 </div>
-              ))}
+              ) : (
+                workshops.map((w) => (
+                  <div key={w._id} className="p-6 rounded-[22px] bg-[#151515] border border-[rgba(255,255,255,0.06)] hover:border-[#FFD400] transition-all flex flex-col justify-between shadow-md relative overflow-hidden text-xs">
+                    
+                    {/* Top Header Card */}
+                    <div className="flex gap-4 items-start">
+                      <Image 
+                        src={w.owner_id?.profile_image || "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png"} 
+                        alt="logo" 
+                        width={48}
+                        height={48}
+                        className="w-12 h-12 rounded-full border border-white/10 object-cover"
+                      />
+                      <div className="flex-1 text-left">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="text-base font-bold text-white uppercase">{w.name}</h3>
+                          {w.is_verified && (
+                            <span className="bg-[#FFD400]/10 text-[#FFD400] text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border border-[#FFD400]/20 flex items-center gap-0.5">
+                              ✓ VERIFIED
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-[#9A9A9A] font-medium font-mono mt-0.5">Owner: {w.owner_id?.name || "Network Manager"}</p>
+                      </div>
+                    </div>
+
+                    {/* Body Details */}
+                    <div className="grid grid-cols-2 gap-3 mt-5 text-left border-t border-b border-white/5 py-4">
+                      <div>
+                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Address</span>
+                        <span className="font-semibold text-white">{w.address}, {w.city || "Pune"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Working Hours</span>
+                        <span className="font-semibold text-white">{w.working_hours || "9:00 AM - 7:00 PM"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Contact Coordinates</span>
+                        <span className="font-semibold text-white">{w.phone}</span>
+                        <span className="block text-[10px] text-[#9A9A9A]">{w.owner_id?.email}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-[#9A9A9A] block uppercase">Network Status</span>
+                        <span className="text-[#7CFF7A] font-bold uppercase">{w.current_status || "OPEN"}</span>
+                      </div>
+                    </div>
+
+                    {/* Services Tag array */}
+                    {w.services && w.services.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-4 justify-start">
+                        {w.services.map((srv: string, idx: number) => (
+                          <span key={idx} className="bg-white/5 text-[#9A9A9A] text-[9px] font-medium px-2 py-0.5 rounded-full border border-white/10">
+                            {srv}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Rating display */}
+                    <div className="flex items-center gap-1 mt-4 text-[11px] font-bold text-[#FFD400]">
+                      ⭐ {w.rating || 5.0} / 5.0 Network Rating ({w.review_count || 0} reviews)
+                    </div>
+
+                    {/* Card Actions Footer */}
+                    <div className="grid grid-cols-2 gap-2 mt-6">
+                      <button 
+                        onClick={() => handleSelectWorkshopChat(w)}
+                        className="py-2.5 border border-white/5 hover:border-[#FFD400] hover:bg-[#FFD400]/10 text-white rounded-[12px] text-[10px] font-bold uppercase transition-all"
+                      >
+                        Discuss Issue
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setSelectedWorkshop(w._id);
+                          setActiveTab("create-complaint");
+                        }}
+                        className="py-2.5 bg-[#FFD400] text-black hover:bg-[#FFC300] rounded-[12px] text-[10px] font-bold uppercase transition-all"
+                      >
+                        Create Complaint
+                      </button>
+                      <a 
+                        href={`tel:${w.phone}`}
+                        className="py-2 text-center border border-white/5 hover:border-white/20 text-[#9A9A9A] hover:text-white rounded-[12px] text-[9px] font-bold uppercase transition-all"
+                      >
+                        Contact
+                      </a>
+                      <button 
+                        onClick={() => {
+                          alert(`Service slot booked with ${w.name}! A team coordinator will text confirmation coordinates to ${user?.phone}.`);
+                        }}
+                        className="py-2 border border-white/5 hover:border-white/20 text-[#9A9A9A] hover:text-white rounded-[12px] text-[9px] font-bold uppercase transition-all"
+                      >
+                        Book Service
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}

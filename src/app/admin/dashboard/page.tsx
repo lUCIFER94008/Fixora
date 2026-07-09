@@ -67,9 +67,7 @@ export default function AdminDashboard() {
       setCategoryChart(response.data.category_chart);
       setMonthlyTrend(response.data.monthly_trend);
     } catch (err) {
-      setUnverifiedWorkshops([
-        { _id: "ws_un", name: "RUSTY BOLTS REPAIR", address: "404 Industrial Lane", phone: "+1234567890", services: ["Rust Treatment", "Oil Change"] }
-      ]);
+      setUnverifiedWorkshops([]);
       setMonthlyTrend([
         { month: "Jan", complaints: 12, revenue: 14000 },
         { month: "Feb", complaints: 19, revenue: 21000 },
