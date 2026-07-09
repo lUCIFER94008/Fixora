@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { Complaint, Notification } from "@/models/Schemas";
+import { Complaint, Notification, User, Vehicle } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
+import { sendRepairStatusEmail, sendAIDiagnosticEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
   try {
@@ -144,6 +145,14 @@ export async function POST(req: Request) {
       estimated_cost: minCost + 200,
       estimated_completion: estimated_time
     });
+
+    // Send automated complaint registered & AI Diagnostic Report emails
+    if (tokenUser.email) {
+      const workshopObj = workshop_id ? await User.findById(workshop_id) : null;
+      const vehicleObj = await Vehicle.findById(vehicle_id);
+      await sendRepairStatusEmail(tokenUser.email, tokenUser.name, "Pending", newComplaint, vehicleObj, workshopObj);
+      await sendAIDiagnosticEmail(tokenUser.email, tokenUser.name, newComplaint);
+    }
 
     // Create Notification for the Workshop if targeted
     if (workshop_id) {

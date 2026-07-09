@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { User } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
+import { sendPremiumActivationEmail } from "@/lib/email";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
@@ -22,14 +23,19 @@ export async function POST(req: Request) {
     const signature = razorpay_signature || `sig_mock_${crypto.randomBytes(16).toString("hex")}`;
 
     // Perform User Subscription Upgrade
-    await User.findByIdAndUpdate(tokenUser._id, {
+    const updatedUser = await User.findByIdAndUpdate(tokenUser._id, {
       plan: "PREMIUM",
       vehicleLimit: 99999, // Unlimited indicator
       paymentStatus: "PAID",
       paymentId: paymentId,
       subscriptionStart: new Date(),
       subscriptionEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
-    });
+    }, { new: true });
+
+    // Send Premium Activation / Payment successful email
+    if (tokenUser.email) {
+      await sendPremiumActivationEmail(tokenUser.email, tokenUser.name, paymentId);
+    }
 
     console.log(`[SUBSCRIPTION-UPGRADE] User ${tokenUser.email} upgraded to PREMIUM. Payment ID: ${paymentId}`);
 

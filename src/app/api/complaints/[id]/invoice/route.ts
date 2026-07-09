@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { Invoice } from "@/models/Schemas";
+import { Invoice, Complaint, User } from "@/models/Schemas";
 import { verifyToken } from "@/lib/jwt";
+import { sendInvoiceEmail } from "@/lib/email";
 
 export async function GET(
   req: Request,
@@ -50,6 +51,11 @@ export async function POST(
     const finalDiscount = Number(discount) || 0;
     const total = subtotal + tax - finalDiscount;
 
+    const comp = await Complaint.findById(id);
+    if (!comp) {
+      return NextResponse.json({ detail: "Complaint not found" }, { status: 404 });
+    }
+
     // Check if invoice already exists
     let inv = await Invoice.findOne({ complaint_id: id });
     if (inv) {
@@ -58,12 +64,13 @@ export async function POST(
       inv.tax = tax;
       inv.discount = finalDiscount;
       inv.total = total;
+      inv.owner_id = comp.owner_id.toString();
       await inv.save();
     } else {
       inv = await Invoice.create({
         complaint_id: id,
         workshop_id: tokenUser._id, // Workshop owner id
-        owner_id: "owner_id", // Fallback owner reference
+        owner_id: comp.owner_id.toString(),
         items,
         subtotal,
         tax,
@@ -71,6 +78,12 @@ export async function POST(
         total,
         status: "Unpaid"
       });
+    }
+
+    // Send invoice email to the customer
+    const owner = await User.findById(comp.owner_id);
+    if (owner && owner.email) {
+      await sendInvoiceEmail(owner.email, owner.name, inv, comp);
     }
 
     return NextResponse.json(inv);

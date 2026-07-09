@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { User, Vehicle, Workshop, Complaint } from "@/models/Schemas";
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -217,6 +218,552 @@ export async function sendPasswordResetEmail(
       throw error;
     }
     throw new Error("Email could not be sent");
+  }
+}
+
+// ───────────────────────────────────────────────────
+// FIXORA Base HTML Email Template Generator
+// ───────────────────────────────────────────────────
+export function generateFixoraEmail(
+  customerName: string,
+  title: string,
+  statusBadgeText: string,
+  statusBadgeColor: string,
+  bodyHtml: string,
+  progressStepIndex: number // 0: Pending, 1: Accepted, 2: Inspection, 3: Repair, 4: Parts Required, 5: Completed, 6: Delivered, -1: Cancelled/None
+): string {
+  const logoUrl = "https://res.cloudinary.com/dpmpefw2p/image/upload/v1782325003/ChatGPT_Image_Jun_24_2026_11_46_25_PM_vdhyet.png";
+  const steps = ["Pending", "Accepted", "Inspection", "Repair", "Parts Req.", "Completed", "Delivered"];
+
+  let progressHtml = "";
+  if (progressStepIndex >= 0) {
+    progressHtml = `
+      <div style="margin: 25px 0; background-color: #111111; padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
+        <p style="color: #9A9A9A; font-size: 10px; uppercase; font-weight: bold; margin: 0 0 10px 0; letter-spacing: 1px;">Repair Progress Tracker</p>
+        <div style="display: table; width: 100%; table-layout: fixed;">
+          ${steps.map((step, idx) => {
+            const isActive = idx === progressStepIndex;
+            const isCompleted = idx < progressStepIndex;
+            const color = isActive ? "#FFD400" : isCompleted ? "#7CFF7A" : "#444444";
+            return `
+              <div style="display: table-cell; text-align: center; font-size: 9px; color: ${color}; font-weight: ${isActive ? "bold" : "normal"};">
+                <span style="font-size: 14px; display: block;">${isActive ? "🟡" : isCompleted ? "●" : "○"}</span>
+                <span style="display: block; margin-top: 4px;">${step}</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #050505; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #050505; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 600px; background-color: #111111; border-radius: 24px; border: 1px solid rgba(255, 212, 0, 0.15); box-shadow: 0 12px 48px rgba(0,0,0,0.9); overflow: hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #111111 0%, #1c1c02 100%); padding: 30px 40px; text-align: center; border-bottom: 1px solid rgba(255, 212, 0, 0.1);">
+              <img src="${logoUrl}" alt="FIXORA" width="56" height="56" style="border-radius: 50%; border: 2px solid #FFD400; margin-bottom: 10px; display: inline-block;" />
+              <h1 style="color: #FFFFFF; font-size: 22px; font-weight: 900; margin: 0; letter-spacing: 3px; text-transform: uppercase;">FIXORA</h1>
+              <p style="color: #FFD400; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; margin: 4px 0 0 0;">Autonomous Hyper-Garage Platform</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 35px 40px;">
+              <p style="color: #FFFFFF; font-size: 14px; margin: 0 0 10px 0;">Hello <strong>${customerName}</strong>,</p>
+              
+              <!-- Subject Heading -->
+              <h2 style="color: #FFFFFF; font-size: 16px; font-weight: 800; margin: 15px 0; text-transform: uppercase; border-left: 3px solid #FFD400; padding-left: 10px;">
+                ${title}
+              </h2>
+
+              <!-- Status Badge -->
+              <div style="margin: 15px 0;">
+                <span style="background-color: ${statusBadgeColor}20; color: ${statusBadgeColor}; border: 1px solid ${statusBadgeColor}40; padding: 6px 14px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; display: inline-block;">
+                  Status: ${statusBadgeText}
+                </span>
+              </div>
+
+              ${bodyHtml}
+
+              <!-- Progress bar index helper -->
+              ${progressHtml}
+
+              <!-- CTA / Dashboard redirection link -->
+              <div style="margin-top: 30px; text-align: center;">
+                <a href="${process.env.NEXTAUTH_URL || "http://localhost:3000"}/owner/dashboard" target="_blank" style="display: inline-block; background-color: #FFD400; color: #000000; font-size: 12px; font-weight: 800; text-decoration: none; padding: 14px 35px; border-radius: 12px; letter-spacing: 1.2px; text-transform: uppercase; transition: all 0.2s;">
+                  Access Dashboard →
+                </a>
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #090909; padding: 25px 40px; border-top: 1px solid rgba(255,255,255,0.04); text-align: center;">
+              <p style="color: #444444; font-size: 9px; margin: 0 0 6px 0; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Fixora Operations Core</p>
+              <p style="color: #333333; font-size: 9px; margin: 0 0 15px 0; line-height: 1.5;">
+                This automated coordinate notification is synchronized with MongoDB. If you have inquiries, reach support at <a href="mailto:support@fixora.com" style="color: #FFD400; text-decoration: none;">support@fixora.com</a>.<br/>
+                &copy; ${new Date().getFullYear()} FIXORA. All rights reserved.
+              </p>
+              <div style="font-size: 10px;">
+                <a href="#" style="color: #555555; text-decoration: none; margin: 0 8px;">Website</a>
+                <a href="#" style="color: #555555; text-decoration: none; margin: 0 8px;">Twitter</a>
+                <a href="#" style="color: #555555; text-decoration: none; margin: 0 8px;">Instagram</a>
+              </div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
+// ───────────────────────────────────────────────────
+// Specialized Send Functions Wrapper
+// ───────────────────────────────────────────────────
+export async function sendRepairStatusEmail(
+  email: string,
+  customerName: string,
+  status: string,
+  complaint: any,
+  vehicle: any,
+  workshop: any,
+  completionDate?: string,
+  reason?: string
+): Promise<boolean> {
+  if (!email) {
+    console.warn("[EMAIL WARNING] Customer email is missing. Skipping send.");
+    return false;
+  }
+
+  const emailFrom = process.env.EMAIL_FROM || "no-reply@fixora.com";
+  let subject = `FIXORA | Repair Status Updated`;
+  let title = `Repair Status Updated`;
+  let badgeColor = "#FFD400";
+  let stepIndex = 0;
+  let bodyHtml = "";
+
+  switch (status) {
+    case "Pending":
+      subject = "FIXORA | Complaint Successfully Registered";
+      title = "Complaint Successfully Registered";
+      badgeColor = "#FFD400";
+      stepIndex = 0;
+      bodyHtml = `
+        <p style="color: #9A9A9A; line-height: 1.6;">Your vehicle complaint has been successfully registered on the platform.</p>
+        <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+          <tr><td><strong>Complaint ID:</strong></td><td style="color: #FFF;">${complaint.complaintId || complaint._id}</td></tr>
+          <tr><td><strong>Vehicle:</strong></td><td style="color: #FFF;">${vehicle?.make} ${vehicle?.model} (${vehicle?.license_plate})</td></tr>
+          <tr><td><strong>Workshop:</strong></td><td style="color: #FFF;">${workshop?.name}</td></tr>
+          <tr><td><strong>Issue:</strong></td><td style="color: #FFF;">${complaint.title}</td></tr>
+        </table>
+        <p style="color: #9A9A9A; line-height: 1.6; margin-top: 15px;">Your complaint is waiting for workshop approval.</p>
+      `;
+      break;
+
+    case "Accepted":
+      subject = "FIXORA | Complaint Accepted";
+      title = "Complaint Accepted";
+      badgeColor = "#7CFF7A";
+      stepIndex = 1;
+      bodyHtml = `
+        <p style="color: #9A9A9A; line-height: 1.6;">Great news! <strong>${workshop?.name}</strong> has accepted your complaint.</p>
+        <p style="color: #9A9A9A; line-height: 1.6; margin-top: 10px;">Our technicians will begin inspecting your vehicle shortly. Monitor metrics via the dashboard link below.</p>
+      `;
+      break;
+
+    case "Inspection":
+      subject = "FIXORA | Vehicle Inspection Started";
+      title = "Vehicle Inspection Started";
+      badgeColor = "#38bdf8";
+      stepIndex = 2;
+      bodyHtml = `
+        <p style="color: #9A9A9A; line-height: 1.6;">Your vehicle inspection has started. Diagnostics scanners are reading fault logs.</p>
+        <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+          <tr><td><strong>Workshop:</strong></td><td style="color: #FFF;">${workshop?.name}</td></tr>
+          <tr><td><strong>Complaint:</strong></td><td style="color: #FFF;">${complaint.title}</td></tr>
+          <tr><td><strong>Vehicle:</strong></td><td style="color: #FFF;">${vehicle?.make} ${vehicle?.model}</td></tr>
+        </table>
+      `;
+      break;
+
+    case "Repair Started":
+    case "Repair":
+      subject = "FIXORA | Repair Work Started";
+      title = "Repair Work Started";
+      badgeColor = "#f97316";
+      stepIndex = 3;
+      bodyHtml = `
+        <p style="color: #9A9A9A; line-height: 1.6;">Repair work has begun on your vehicle.</p>
+        <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+          <tr><td><strong>Workshop:</strong></td><td style="color: #FFF;">${workshop?.name}</td></tr>
+          <tr><td><strong>Vehicle:</strong></td><td style="color: #FFF;">${vehicle?.make} ${vehicle?.model}</td></tr>
+          <tr><td><strong>Estimated Completion:</strong></td><td style="color: #FFD400; font-weight: bold;">${completionDate || "1 Day"}</td></tr>
+        </table>
+      `;
+      break;
+
+    case "Waiting Parts":
+    case "Parts Required":
+      subject = "FIXORA | Waiting for Replacement Parts";
+      title = "Waiting for Replacement Parts";
+      badgeColor = "#a855f7";
+      stepIndex = 4;
+      bodyHtml = `
+        <p style="color: #9A9A9A; line-height: 1.6;">Your repair is temporarily paused.</p>
+        <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+          <tr><td><strong>Reason:</strong></td><td style="color: #FFF;">Replacement parts are being arranged.</td></tr>
+          <tr><td><strong>Detail:</strong></td><td style="color: #FFF;">${reason || "Waiting for components shipment."}</td></tr>
+        </table>
+        <p style="color: #9A9A9A; line-height: 1.6; margin-top: 15px;">We'll notify you immediately once repair work resumes.</p>
+      `;
+      break;
+
+    case "Completed":
+      subject = "FIXORA | Repair Completed Successfully";
+      title = "Repair Completed Successfully";
+      badgeColor = "#10b981";
+      stepIndex = 5;
+      bodyHtml = `
+        <p style="color: #9A9A9A; line-height: 1.6;">Congratulations! Your vehicle repair has been successfully completed.</p>
+        <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+          <tr><td><strong>Workshop:</strong></td><td style="color: #FFF;">${workshop?.name}</td></tr>
+          <tr><td><strong>Vehicle:</strong></td><td style="color: #FFF;">${vehicle?.make} ${vehicle?.model}</td></tr>
+          <tr><td><strong>Repair Details:</strong></td><td style="color: #FFF;">${complaint.title}</td></tr>
+        </table>
+        <p style="color: #9A9A9A; line-height: 1.6; margin-top: 15px;">Please schedule pickup or wait for delivery. View the details below.</p>
+      `;
+      break;
+
+    case "Delivered":
+      subject = "FIXORA | Vehicle Delivered";
+      title = "Vehicle Delivered";
+      badgeColor = "#6366f1";
+      stepIndex = 6;
+      bodyHtml = `
+        <p style="color: #9A9A9A; line-height: 1.6;">Your vehicle has been delivered. Thank you for choosing FIXORA.</p>
+        <p style="color: #9A9A9A; line-height: 1.6;">Please take a moment to rate your experience with ${workshop?.name}.</p>
+      `;
+      break;
+
+    case "Cancelled":
+      subject = "FIXORA | Complaint Cancelled";
+      title = "Complaint Cancelled";
+      badgeColor = "#ef4444";
+      stepIndex = -1;
+      bodyHtml = `
+        <p style="color: #9A9A9A; line-height: 1.6;">Your registered vehicle complaint has been cancelled.</p>
+        <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+          <tr><td><strong>Reason:</strong></td><td style="color: #FF5959; font-weight: bold;">${reason || "Cancelled by workshop owner."}</td></tr>
+        </table>
+        <p style="color: #9A9A9A; line-height: 1.6; margin-top: 15px;">If this was unexpected, please contact the workshop directly at ${workshop?.phone || ""}.</p>
+      `;
+      break;
+
+    default:
+      stepIndex = 0;
+      bodyHtml = `<p style="color: #9A9A9A;">Repair status changed to: ${status}</p>`;
+  }
+
+  const html = generateFixoraEmail(customerName, title, status, badgeColor, bodyHtml, stepIndex);
+
+  try {
+    const activeTransporter = getTransporter();
+    await activeTransporter.sendMail({
+      from: `"FIXORA" <${emailFrom}>`,
+      to: email,
+      subject: subject,
+      html: html,
+      text: `${title}\nStatus: ${status}\n\nAccess dashboard: ${process.env.NEXTAUTH_URL || "http://localhost:3000"}`
+    });
+    console.log(`[EMAIL SUCCESS] Repair status update email sent to: ${email}`);
+    return true;
+  } catch (error: any) {
+    console.error("[EMAIL SMTP ERROR] Failed to send repair status email:", error);
+    return false;
+  }
+}
+
+export async function sendRegistrationEmail(email: string, name: string): Promise<boolean> {
+  const html = generateFixoraEmail(
+    name,
+    "Welcome to FIXORA!",
+    "Registration Successful",
+    "#7CFF7A",
+    `<p style="color: #9A9A9A; line-height: 1.6;">Your FIXORA account has been successfully registered. You can now login, add vehicles, and coordinate diagnostic scans.</p>`,
+    -1
+  );
+  try {
+    const activeTransporter = getTransporter();
+    await activeTransporter.sendMail({
+      from: `"FIXORA" <${process.env.EMAIL_FROM || "no-reply@fixora.com"}>`,
+      to: email,
+      subject: "Welcome to FIXORA | Registration Successful",
+      html
+    });
+    return true;
+  } catch (err) {
+    console.error("sendRegistrationEmail error:", err);
+    return false;
+  }
+}
+
+export async function sendPremiumActivationEmail(email: string, name: string, paymentId: string): Promise<boolean> {
+  const html = generateFixoraEmail(
+    name,
+    "Premium Subscription Activated!",
+    "Premium Active",
+    "#FFD400",
+    `
+      <p style="color: #9A9A9A; line-height: 1.6;">Thank you for your payment. Your Premium account is now active!</p>
+      <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+        <tr><td><strong>Plan:</strong></td><td style="color: #FFD400; font-weight: bold;">⭐ PREMIUM UNLIMITED</td></tr>
+        <tr><td><strong>Transaction ID:</strong></td><td style="color: #FFF;">${paymentId}</td></tr>
+        <tr><td><strong>Features:</strong></td><td style="color: #FFF;">Unlimited Vehicles & Unlimited AI Diagnostics scans.</td></tr>
+      </table>
+    `,
+    -1
+  );
+  try {
+    const activeTransporter = getTransporter();
+    await activeTransporter.sendMail({
+      from: `"FIXORA" <${process.env.EMAIL_FROM || "no-reply@fixora.com"}>`,
+      to: email,
+      subject: "FIXORA | Premium Subscription Activated",
+      html
+    });
+    return true;
+  } catch (err) {
+    console.error("sendPremiumActivationEmail error:", err);
+    return false;
+  }
+}
+
+export async function sendBookingEmail(
+  email: string,
+  name: string,
+  booking: any,
+  type: "confirmation" | "cancelled" | "reminder"
+): Promise<boolean> {
+  let subject = "FIXORA | Booking Update";
+  let title = "Booking Update";
+  let badgeText = "Confirmed";
+  let badgeColor = "#7CFF7A";
+  let textHtml = "";
+
+  if (type === "confirmation") {
+    subject = "FIXORA | Booking Confirmed";
+    title = "Booking Confirmation Details";
+    badgeText = "Confirmed";
+    badgeColor = "#7CFF7A";
+    textHtml = `<p style="color: #9A9A9A; line-height: 1.6;">Your booking slot has been successfully scheduled with <strong>${booking.workshopName}</strong>.</p>`;
+  } else if (type === "cancelled") {
+    subject = "FIXORA | Booking Cancelled";
+    title = "Booking Cancellation Alert";
+    badgeText = "Cancelled";
+    badgeColor = "#FF5959";
+    textHtml = `<p style="color: #FF5959; line-height: 1.6;">Your scheduled service slot has been cancelled.</p>`;
+  } else {
+    subject = "FIXORA | Booking Reminder";
+    title = "Booking Reminder Notice";
+    badgeText = "Reminder";
+    badgeColor = "#FFD400";
+    textHtml = `<p style="color: #9A9A9A; line-height: 1.6;">This is a friendly reminder for your upcoming service slot.</p>`;
+  }
+
+  const html = generateFixoraEmail(
+    name,
+    title,
+    badgeText,
+    badgeColor,
+    `
+      ${textHtml}
+      <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+        <tr><td><strong>Booking ID:</strong></td><td style="color: #FFF;">${booking.bookingId}</td></tr>
+        <tr><td><strong>Vehicle:</strong></td><td style="color: #FFF;">${booking.vehicleName}</td></tr>
+        <tr><td><strong>Workshop:</strong></td><td style="color: #FFF;">${booking.workshopName}</td></tr>
+        <tr><td><strong>Date:</strong></td><td style="color: #FFF;">${booking.preferredDate}</td></tr>
+        <tr><td><strong>Time:</strong></td><td style="color: #FFF;">${booking.preferredTime}</td></tr>
+      </table>
+    `,
+    -1
+  );
+
+  try {
+    const activeTransporter = getTransporter();
+    await activeTransporter.sendMail({
+      from: `"FIXORA" <${process.env.EMAIL_FROM || "no-reply@fixora.com"}>`,
+      to: email,
+      subject,
+      html
+    });
+    return true;
+  } catch (err) {
+    console.error("sendBookingEmail error:", err);
+    return false;
+  }
+}
+
+export async function sendInvoiceEmail(email: string, name: string, invoice: any, complaint: any): Promise<boolean> {
+  const html = generateFixoraEmail(
+    name,
+    "Invoice Generated Successfully",
+    "Invoice Unpaid",
+    "#FFD400",
+    `
+      <p style="color: #9A9A9A; line-height: 1.6;">An invoice has been generated for your recent vehicle repair.</p>
+      <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+        <tr><td><strong>Complaint Ref:</strong></td><td style="color: #FFF;">${complaint.title}</td></tr>
+        <tr><td><strong>Total Amount:</strong></td><td style="color: #FFD400; font-weight: bold;">₹${invoice.total.toLocaleString()}</td></tr>
+        <tr><td><strong>Status:</strong></td><td style="color: #FFF;">${invoice.status}</td></tr>
+      </table>
+      <p style="color: #9A9A9A; line-height: 1.6; margin-top: 15px;">Please login and complete payment via Razorpay checkout inside your settlements panel.</p>
+    `,
+    -1
+  );
+  try {
+    const activeTransporter = getTransporter();
+    await activeTransporter.sendMail({
+      from: `"FIXORA" <${process.env.EMAIL_FROM || "no-reply@fixora.com"}>`,
+      to: email,
+      subject: "FIXORA | New Invoice Generated",
+      html
+    });
+    return true;
+  } catch (err) {
+    console.error("sendInvoiceEmail error:", err);
+    return false;
+  }
+}
+
+export async function sendAIDiagnosticEmail(email: string, name: string, complaint: any): Promise<boolean> {
+  const diag = complaint.ai_diagnostics || {};
+  const html = generateFixoraEmail(
+    name,
+    "AI Neural Scan Diagnostics Ready",
+    "Diagnostics Scan Complete",
+    "#38bdf8",
+    `
+      <p style="color: #9A9A9A; line-height: 1.6;">The AI Neural scanner has finished compiling telemetry fault classifications.</p>
+      <table role="presentation" width="100%" style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #9A9A9A; font-size: 12px;">
+        <tr><td><strong>Detected fault:</strong></td><td style="color: #FF5959; font-weight: bold;">${diag.category || "EV Powertrain System Fault"}</td></tr>
+        <tr><td><strong>Severity:</strong></td><td style="color: #FF5959; font-weight: bold;">${diag.severity || "Critical"}</td></tr>
+        <tr><td><strong>Recommendation:</strong></td><td style="color: #FFF;">${diag.recommended_action || "Calibrate battery modules."}</td></tr>
+        <tr><td><strong>Confidence:</strong></td><td style="color: #FFD400;">${diag.confidence_score ? `${diag.confidence_score}%` : "94%"}</td></tr>
+      </table>
+    `,
+    -1
+  );
+  try {
+    const activeTransporter = getTransporter();
+    await activeTransporter.sendMail({
+      from: `"FIXORA" <${process.env.EMAIL_FROM || "no-reply@fixora.com"}>`,
+      to: email,
+      subject: "FIXORA | AI Diagnostic Scan Report Ready",
+      html
+    });
+    return true;
+  } catch (err) {
+    console.error("sendAIDiagnosticEmail error:", err);
+    return false;
+  }
+}
+
+export async function sendChatReplyOfflineEmail(email: string, name: string, messageText: string): Promise<boolean> {
+  const html = generateFixoraEmail(
+    name,
+    "New Chat Reply Received",
+    "Offline Reply Received",
+    "#FFD400",
+    `
+      <p style="color: #9A9A9A; line-height: 1.6;">You have received a new offline message from your workshop coordinator.</p>
+      <div style="background-color: #151515; padding: 16px; border-radius: 12px; margin-top: 15px; text-align: left; color: #FFF; font-style: italic; border-left: 3px solid #FFD400;">
+        "${messageText}"
+      </div>
+      <p style="color: #9A9A9A; line-height: 1.6; margin-top: 15px;">Login to the chat dashboard to send an instant response.</p>
+    `,
+    -1
+  );
+  try {
+    const activeTransporter = getTransporter();
+    await activeTransporter.sendMail({
+      from: `"FIXORA" <${process.env.EMAIL_FROM || "no-reply@fixora.com"}>`,
+      to: email,
+      subject: "FIXORA | New Message Offline Alert",
+      html
+    });
+    return true;
+  } catch (err) {
+    console.error("sendChatReplyOfflineEmail error:", err);
+    return false;
+  }
+}
+
+export async function triggerStatusNotification(
+  complaintId: string,
+  status: string,
+  reason?: string
+): Promise<string> {
+  try {
+    const comp = await Complaint.findById(complaintId);
+    if (!comp) {
+      console.warn(`[STATUS EMAIL WARNING] Complaint ${complaintId} not found.`);
+      return "Email Failed";
+    }
+
+    const owner = await User.findById(comp.owner_id);
+    if (!owner) {
+      console.warn(`[STATUS EMAIL WARNING] Owner not found for complaint ${complaintId}.`);
+      return "Email Failed";
+    }
+
+    const vehicle = await Vehicle.findById(comp.vehicle_id);
+    const wsOwner = await User.findById(comp.workshop_id);
+    let workshop = await Workshop.findOne({ owner_id: comp.workshop_id });
+
+    if (!workshop && wsOwner) {
+      workshop = {
+        name: wsOwner.name,
+        phone: wsOwner.phone,
+        address: "Fixora Network Partner",
+        email: wsOwner.email
+      } as any;
+    }
+
+    const emailSent = await sendRepairStatusEmail(
+      owner.email,
+      owner.name,
+      status,
+      comp,
+      vehicle,
+      workshop,
+      comp.estimated_completion,
+      reason
+    );
+
+    return emailSent ? "Email Sent Successfully" : "Email Failed";
+  } catch (err) {
+    console.error("[STATUS EMAIL ERROR] triggerStatusNotification error:", err);
+    return "Email Failed";
   }
 }
 

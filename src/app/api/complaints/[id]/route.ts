@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { Complaint, Notification } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
+import { triggerStatusNotification } from "@/lib/email";
 
 export async function GET(
   req: Request,
@@ -66,8 +67,8 @@ export async function PATCH(
     }
 
     // Apply updates
+    const oldStatus = comp.status;
     if (status) {
-      const oldStatus = comp.status;
       comp.status = status;
       
       // If accepting complaint, link workshop ID
@@ -111,13 +112,19 @@ export async function PATCH(
     comp.updated_at = new Date();
     await comp.save();
 
+    let emailStatus = "Skipped";
+    if (status && status !== oldStatus) {
+      emailStatus = await triggerStatusNotification(id, status, status === "Cancelled" ? technician_notes : undefined);
+    }
+
     // Return fully populated document
     const updated = await Complaint.findById(id)
       .populate("owner_id", "name email phone profile_image")
       .populate("vehicle_id")
       .populate("workshop_id", "name email phone profile_image");
 
-    return NextResponse.json(updated);
+    const updatedObj = updated ? updated.toObject() : {};
+    return NextResponse.json({ ...updatedObj, emailStatus });
   } catch (err: any) {
     console.error("Complaint PATCH detail error:", err);
     return NextResponse.json({ detail: "Server error" }, { status: 500 });

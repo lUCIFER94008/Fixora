@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { Booking, Notification, Workshop } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
+import { sendBookingEmail } from "@/lib/email";
 
 export async function POST(
   req: Request,
@@ -48,6 +49,15 @@ export async function POST(
 
     booking.status = status;
     await booking.save();
+
+    // Trigger booking emails
+    if (booking.ownerEmail) {
+      if (status === "Accepted") {
+        await sendBookingEmail(booking.ownerEmail, booking.ownerName, booking, "confirmation");
+      } else if (status === "Cancelled" || status === "Rejected") {
+        await sendBookingEmail(booking.ownerEmail, booking.ownerName, booking, "cancelled");
+      }
+    }
 
     // Create notifications for Owner
     await Notification.create({

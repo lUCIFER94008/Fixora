@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { Booking, User, Vehicle, Workshop, Notification } from "@/models/Schemas";
 import { verifyUser } from "@/lib/jwt";
+import { sendBookingEmail } from "@/lib/email";
 import crypto from "crypto";
 
 export async function GET(req: Request) {
@@ -81,6 +82,11 @@ export async function POST(req: Request) {
       notes: notes || "",
       status: "Pending"
     });
+
+    // Send confirmation email
+    if (tokenUser.email) {
+      await sendBookingEmail(tokenUser.email, tokenUser.name, newBooking, "confirmation");
+    }
 
     // Create notifications for Owner
     await Notification.create({

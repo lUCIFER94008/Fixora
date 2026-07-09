@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { Complaint } from "@/models/Schemas";
 import { verifyToken } from "@/lib/jwt";
+import { triggerStatusNotification } from "@/lib/email";
 
 export async function PUT(
   req: Request,
@@ -22,6 +23,8 @@ export async function PUT(
       return NextResponse.json({ detail: "Complaint not found" }, { status: 404 });
     }
 
+    const oldStatus = comp.status;
+
     if (status) {
       comp.status = status;
       if (status === "Accepted" && tokenUser.role === "workshop") {
@@ -36,7 +39,12 @@ export async function PUT(
     comp.updated_at = new Date();
     await comp.save();
 
-    return NextResponse.json(comp);
+    let emailStatus = "Skipped";
+    if (status && status !== oldStatus) {
+      emailStatus = await triggerStatusNotification(id, status, status === "Cancelled" ? technician_notes : undefined);
+    }
+
+    return NextResponse.json({ ...comp.toObject(), emailStatus });
   } catch (err: any) {
     console.error("Complaint status PUT error:", err);
     return NextResponse.json({ detail: "Server error" }, { status: 500 });

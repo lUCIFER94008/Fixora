@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { ChatMessage } from "@/models/Schemas";
+import { ChatMessage, User } from "@/models/Schemas";
 import { verifyToken } from "@/lib/jwt";
+import { sendChatReplyOfflineEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -56,6 +57,13 @@ export async function POST(req: Request) {
       complaint_id,
       ai_replies
     });
+
+    if (tokenUser.role === "workshop") {
+      const receiver = await User.findById(receiver_id);
+      if (receiver && receiver.email) {
+        await sendChatReplyOfflineEmail(receiver.email, receiver.name, content);
+      }
+    }
 
     return NextResponse.json(newMsg);
   } catch (err: any) {

@@ -4,6 +4,7 @@ import { connectToDatabase } from "@/lib/db";
 import { User, Workshop, OtpVerification } from "@/models/Schemas";
 import { signToken } from "@/lib/jwt";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { sendRegistrationEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -86,6 +87,11 @@ export async function POST(req: Request) {
       created_at: new Date(),
       createdAt: new Date()
     });
+
+    // Send registration email
+    if (user.email) {
+      await sendRegistrationEmail(user.email, user.name);
+    }
 
     // If registering as a workshop, seed the Workshop details
     if (role === "workshop") {

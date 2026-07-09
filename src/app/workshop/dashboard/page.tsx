@@ -462,7 +462,14 @@ export default function WorkshopDashboard() {
         estimated_completion: repairCompletion || undefined,
         repair_image: repairImage || undefined
       });
-      showToast("success", `Job status updated to ${statusStr}`);
+      const emailStatus = response.data.emailStatus;
+      if (emailStatus === "Email Sent Successfully") {
+        showToast("success", `Job status updated. Email Sent Successfully.`);
+      } else if (emailStatus === "Email Failed") {
+        showToast("warning", `Job status updated, but Email Failed.`);
+      } else {
+        showToast("success", `Job status updated to ${statusStr}`);
+      }
       await fetchWorkshopDashboardData();
     } catch (err: any) {
       showToast("error", err.response?.data?.detail || "Failed to update job status.");
