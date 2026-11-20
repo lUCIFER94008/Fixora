@@ -714,6 +714,18 @@ export default function Home() {
 
         <div className="max-w-[1400px] mx-auto border-t border-[rgba(255,255,255,0.06)] mt-12 pt-8 text-center text-[10px] text-[#9A9A9A]/60">
           &copy; {new Date().getFullYear()} FIXORA INC. ALL RIGHTS RESERVED.
+          <p className="mt-3 text-xs text-[#9A9A9A]">
+            Developed by{" "}
+            <a
+              href="https://r7-online.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Visit R7's website (opens in a new tab)"
+              className="font-semibold text-[#FFD400] transition-all duration-200 hover:brightness-125 hover:underline"
+            >
+              R7
+            </a>
+          </p>
         </div>
       </footer>
 
